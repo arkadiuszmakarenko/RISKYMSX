@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "tfcart-eagle-import")(type "KiCad")(uri "${KIPRJMOD}/tfcart-eagle-import.kicad_sym")(options "")(descr ""))
+)
