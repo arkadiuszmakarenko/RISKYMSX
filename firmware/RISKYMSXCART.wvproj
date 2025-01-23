@@ -165,7 +165,7 @@
 					"other_target_flags": ""
 				},
 				"optimization": {
-					"level": "fast",
+					"level": "size",
 					"message_length": true,
 					"char_is_signed": true,
 					"function_sections": true,
@@ -205,7 +205,7 @@
 					"other_warning_flags": ""
 				},
 				"debugging": {
-					"debug_level": "none",
+					"debug_level": "max",
 					"debug_format": "default",
 					"generate_prof_information": false,
 					"generate_gprof_information": false,
@@ -233,7 +233,7 @@
 						"generate_assembler_listing": false,
 						"save_temporary_files": false,
 						"verbose": true,
-						"other_assembler_flags": "-Wno-volatile-register-var -ffixed-s7"
+						"other_assembler_flags": ""
 					}
 				},
 				"ccompiler": {
@@ -270,7 +270,7 @@
 						"generate_assembler_listing": true,
 						"save_temporary_files": false,
 						"verbose": true,
-						"other_compiler_flags": "-Wno-volatile-register-var -ffixed-s7"
+						"other_compiler_flags": ""
 					}
 				},
 				"cppcompiler": {
@@ -721,7 +721,7 @@
 	"flashConfig": {
 		"mcutype": "CH32V30x",
 		"address": "0x08000000",
-		"target_path": "obj\\RISKYMSXCART.bin",
+		"target_path": "/home/makaron/Repo/RISKYMSXCart/firmware/obj/RISKYMSXCART.hex",
 		"clkSpeed": "High",
 		"debug_interface_mode": "1-wire serial",
 		"erase": true,
