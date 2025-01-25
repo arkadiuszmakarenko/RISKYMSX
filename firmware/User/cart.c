@@ -32,12 +32,15 @@ struct MSXState {
 // global variables#
 volatile struct MSXState *state_pointer;
 volatile uint8_t *restrict cartpnt;
+volatile CircularBuffer *buf;
 
 // Config Cart emulation hardware.
 void Init_Cart (void) {
 
     state_pointer = &state;
     cartpnt = (uint8_t *)&__cart_section_start;
+    buf = &cb;
+
 
     FLASH_Enhance_Mode (ENABLE);
     CartType volatile type;
@@ -205,7 +208,7 @@ void RunKonamiWithoutSCC (void) {
 }
 
 void RunKonamiWithSCC (void) {
-    volatile uint16_t address;
+     volatile uint16_t address;
     volatile uint8_t WriteData;
 
     // clear interrupt flag
@@ -216,7 +219,7 @@ void RunKonamiWithSCC (void) {
     WriteData = ((uint16_t)GPIOD->INDR);
 
     // loop - we need to do wait for potential write
-    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+    
         // Handle read cycle
         if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
         {
@@ -229,16 +232,21 @@ void RunKonamiWithSCC (void) {
             GPIOD->CFGLR = 0x44444444;
             return;
         }
-
+while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         // Handle Write cycle
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0) && ((uint16_t)GPIOB->INDR & 0x0200))  // check for writes (WE and not M1)
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
         {
-            if (address >= 0x5000 && address <= 0xB000)                                   // sanity check on HX-10 I get weird address writes at boot this seems to solve the issue
-            {                                                                             // it is
+            if (address > 0xB000) return;
                 state_pointer->bankOffsets[address >> 13] = (WriteData << 13) - (address - 0x1000);
-                uint32_t add_data = (((uint32_t)address << 16) | WriteData);
-                append (&cb, add_data);
-            }
+                uint8_t next;
+                if (buf->head + 1 >= BUFFER_SIZE) {
+                    next = 0;
+                } else {
+                    next = buf->head + 1;
+                }
+                buf->buffer[buf->head] = (((uint32_t)address << 16) | WriteData);
+                buf->head = next;
+            
             return;
         }
     }

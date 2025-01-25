@@ -103,7 +103,7 @@ void SCC_Init (void) {
 
 void SCC_HandleBufer() {
     uint32_t address_data = 0;
-    if (pop (&cb, &address_data) == 0) {
+    while (pop (&cb, &address_data) == 0) {
         uint32_t address = (address_data >> 16) & 0xFFFF;  // Extract the higher 16 bits
         uint32_t data = address_data & 0xFFFF;
         SCC_write (scc, address, data);

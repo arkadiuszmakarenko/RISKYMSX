@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BUFFER_SIZE 512  // Ensure this is a power of 2 for bitwise wrapping
+#define BUFFER_SIZE 4096  // Ensure this is a power of 2 for bitwise wrapping
 
 typedef struct {
     uint32_t *buffer;
