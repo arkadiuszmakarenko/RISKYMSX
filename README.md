@@ -42,6 +42,8 @@ You need to rename rom file to following name, based on mapper used
  | KONAMI with SSC   | cart.scc         | 
  | ASCII8k           | cart.a8k         | 
  | ASCII16k          | cart.a16         | 
+ | NEO16             | cart.n16         | 
+ | NEO8              | cart.n8k         | 
 
 1. Copy file to root directory of a FAT32 formatted drive. It has to be FAT32, currently EX-FAT is not supported.
 2. Power off your MSX with a cart inserted. 
@@ -52,3 +54,5 @@ You need to rename rom file to following name, based on mapper used
 7. When all 4 LEDs are on, you can power off and on your MSX again.
 
 Cartridge will have various LED configurations based on type of mapper used.
+
+To enable SCC emulatoin fo KONAMI with SCC Mapper you need to  bridge uisng jumber Tx Rx pins
