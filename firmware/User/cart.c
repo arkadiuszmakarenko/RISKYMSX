@@ -53,17 +53,19 @@ void Init_Cart (void) {
     switch (type) {
     case ROM32k:
         state.bankOffsets[0] = -0x4000;
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 1 0001
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 1 - 0001
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunCart32k, EXTI3_IRQn, 0, ENABLE);
         break;
     case ROM48k:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);  // binary 1 0001
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);  // 2 - 0010
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunCart48k, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithoutSCC:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // binary 4 0100
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);// 3 - 0011
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+
         // configure initial banks state for Konami without SCC
         state.bankOffsets[2] = -0x4000;
         state.bankOffsets[3] = -0x8000;
@@ -73,12 +75,11 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunKonamiWithoutSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCC:
-        if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) {
+        if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) { 
             SCC_Init();
-            GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
-            GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
-            GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
-            GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+            
+            GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET); // 4 - 0100
+
             // configure initial banks state for Konami with SCC
             state.bankOffsets[2] = -0x4000;  // 0x5000
             state.bankOffsets[3] = -0x6000;  // 0x7000
@@ -91,6 +92,7 @@ void Init_Cart (void) {
         } else {
             GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 5 0101
             GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+
             // configure initial banks state for Konami with SCC
             state.bankOffsets[2] = -0x4000;  // 0x5000
             state.bankOffsets[3] = -0x6000;  // 0x7000
@@ -106,8 +108,9 @@ void Init_Cart (void) {
 
 
     case ASCII8k:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);  // binary 6 0110
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);  //  6 - 0110
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+
         // configure initial banks state for ASCII8K
         state.bankOffsets[0] = -0x4000;  // switch address 6000h  -0x4000;
         state.bankOffsets[1] = -0x6000;  // switch address 6800h  -0x6000;
@@ -118,7 +121,7 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)Run8kASCII, EXTI3_IRQn, 0, ENABLE);
         break;
     case ASCII16k:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 7 0111
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  //  7 - 0111
         GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
         state.bankOffsets[0] = -0x4000;
@@ -127,12 +130,20 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)Run16kASCII, EXTI3_IRQn, 0, ENABLE);
         break;
 
+    case NEO8:
+        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);  // 8 - 1000
+
+        state.bankOffsets[0] = 0;
+        state.bankOffsets[1] = 0;
+        state.bankOffsets[2] = 0;
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        SetVTFIRQ ((u32)RunNEO8, EXTI3_IRQn, 0, ENABLE);
+    break;
 
     case NEO16:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 7 0111
-        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
-        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 9 - 1001
         GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+
         state.bankOffsets[0] = 0;
         state.bankOffsets[1] = 0;
         state.bankOffsets[2] = 0;
@@ -140,17 +151,7 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunNEO16, EXTI3_IRQn, 0, ENABLE);
     break;
 
-        case NEO8:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 7 0111
-        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
-        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
-        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
-        state.bankOffsets[0] = 0;
-        state.bankOffsets[1] = 0;
-        state.bankOffsets[2] = 0;
-        NVIC_EnableIRQ (EXTI3_IRQn);
-        SetVTFIRQ ((u32)RunNEO8, EXTI3_IRQn, 0, ENABLE);
-    break;
+
 
 
     default:
