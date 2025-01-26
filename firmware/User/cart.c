@@ -126,6 +126,33 @@ void Init_Cart (void) {
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)Run16kASCII, EXTI3_IRQn, 0, ENABLE);
         break;
+
+
+    case NEO16:
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 7 0111
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+        state.bankOffsets[0] = 0;
+        state.bankOffsets[1] = 0;
+        state.bankOffsets[2] = 0;
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        SetVTFIRQ ((u32)RunNEO16, EXTI3_IRQn, 0, ENABLE);
+    break;
+
+        case NEO8:
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 7 0111
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+        state.bankOffsets[0] = 0;
+        state.bankOffsets[1] = 0;
+        state.bankOffsets[2] = 0;
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        SetVTFIRQ ((u32)RunNEO8, EXTI3_IRQn, 0, ENABLE);
+    break;
+
+
     default:
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunCart32k, EXTI3_IRQn, 0, ENABLE);
@@ -379,6 +406,105 @@ void Run16kASCII (void) {
             return;
         }
     }
+    return;
+}
+
+
+void RunNEO16(void) {
+     volatile uint16_t address;
+    volatile uint8_t WriteData;
+
+    // clear interrupt flag
+    EXTI->INTFR = EXTI_Line3;
+    // read address
+    address = (uint16_t)GPIOE->INDR;
+    // read data from the data bus very early to give as much time in write cycle as possible
+    WriteData = ((uint16_t)GPIOD->INDR);
+
+        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+        {
+            GPIOD->CFGLR = 0x33333333;
+
+              uint8_t bank = address >> 14;
+                if (bank > 2)
+                {
+                    GPIOD->OUTDR = 0xFF; // skip
+                }
+                else
+                {
+                    uint32_t offset = ((state_pointer->bankOffsets[bank]) << 14) + (address & 0x3FFF);
+                    GPIOD->OUTDR = * ( cartpnt + offset);
+                }
+
+            while ((GPIOB->INDR & 0x0008) == 0) { };
+            GPIOD->CFGLR = 0x44444444;
+            return;
+        }
+while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
+        {
+            if (address > 0xB000) return;
+
+               uint8_t bank = ((address >> 12) & 0x03) - 1;
+                if (bank > 2)
+                return; // skip
+                if (address & 1) // Set bank register MSB
+                state_pointer->bankOffsets[bank] = ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
+                    else // Set bank register LSB
+                state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
+                
+            return;
+        }
+    }
+
+    return;
+}
+
+
+void RunNEO8(void) {
+     volatile uint16_t address;
+    volatile uint8_t WriteData;
+
+    // clear interrupt flag
+    EXTI->INTFR = EXTI_Line3;
+    // read address
+    address = (uint16_t)GPIOE->INDR;
+    // read data from the data bus very early to give as much time in write cycle as possible
+    WriteData = ((uint16_t)GPIOD->INDR);
+
+        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+        {
+            GPIOD->CFGLR = 0x33333333;
+
+                   uint8_t bank = address >> 13;
+                if (bank > 5)
+                {
+                    GPIOD->OUTDR = 0xFF; 
+                }
+                else
+                {
+                     uint32_t offset =((state_pointer->bankOffsets[bank]) << 13) + (address & 0x1FFF);
+                    GPIOD->OUTDR = * ( cartpnt + offset);
+                }
+            while ((GPIOB->INDR & 0x0008) == 0) { };
+            GPIOD->CFGLR = 0x44444444;
+            return;
+        }
+while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
+        {
+            if (address > 0xB000) return;
+               uint8_t bank = ((address >> 11) & 0x07) - 2;
+                if (bank > 5)
+                    return; // skip
+                if (address & 1) // Set bank register MSB
+                    state_pointer->bankOffsets[bank]= ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
+                    else // Set bank register LSB
+                    state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
+            return;
+        }
+    }
+
     return;
 }
 

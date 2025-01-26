@@ -12,6 +12,8 @@ typedef enum CartType {
     KonamiWithSCCNOSCC,
     ASCII8k,
     ASCII16k,
+    NEO16,
+    NEO8
 } CartType;
 
 extern unsigned int __cart_section_start;
@@ -28,6 +30,7 @@ void Run8kASCII (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void Run16kASCII (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 
 void RunNEO16 (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
+void RunNEO8 (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 
 typedef struct _CART_CFG {
     uint32_t CartType;

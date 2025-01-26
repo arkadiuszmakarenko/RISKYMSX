@@ -824,6 +824,10 @@ uint8_t IAP_Main_Deal (void) {
                 cartType = ASCII8k;
             if (strcmp (extention, ".A16") == 0)
                 cartType = ASCII16k;
+            if (strcmp (extention, ".N16") == 0)
+                cartType = NEO16;
+            if (strcmp (extention, ".N8K") == 0)
+                cartType = NEO8;
 
             /* Read File Size */
             totalcount = CHRV3vFileSize;
