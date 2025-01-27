@@ -30,7 +30,7 @@ Click Download
 General troubleshooting.
 If no LEDS are on during power up, You have issues with power lines or shorts.
 If during power up and button pressed no LEDs are flashing your MPU doesn't start at all.
-If you can download ROM any kind of .rom doesn't load then you have issues wih soldering of DATA or BUS lines.
+If you can download ROM to cart but MSX doesn't load data from cart then you have issues wih soldering of ADDRESS, DATA or BUS lines.
 
 ## Using cartridge
 You need to rename rom file to following name, based on mapper used
@@ -38,8 +38,8 @@ You need to rename rom file to following name, based on mapper used
  | Mapper            | filename         | 
  |   :-----------:   | :--------------: | 
  | 32KB ROM          | cart.r32         | 
- | KONAMI without SSC| cart.kon         | 
- | KONAMI with SSC   | cart.scc         | 
+ | KONAMI without SSC| cart.ko4         | 
+ | KONAMI with SSC   | cart.ko5         | 
  | ASCII8k           | cart.a8k         | 
  | ASCII16k          | cart.a16         | 
  | NEO16             | cart.n16         | 
@@ -55,4 +55,4 @@ You need to rename rom file to following name, based on mapper used
 
 Cartridge will have various LED configurations based on type of mapper used.
 
-To enable SCC emulatoin fo KONAMI with SCC Mapper you need to  bridge uisng jumber Tx Rx pins
+To enable SCC emulatoin fo KONAMI with SCC Mapper you need to  bridge uisng jumber Tx Rx pins.
