@@ -816,9 +816,9 @@ uint8_t IAP_Main_Deal (void) {
                 cartType = ROM32k;
             if (strcmp (extention, ".R48") == 0)
                 cartType = ROM48k;
-            if (strcmp (extention, ".KON") == 0)
+            if (strcmp (extention, ".KO4") == 0)
                 cartType = KonamiWithoutSCC;
-            if (strcmp (extention, ".SCC") == 0)
+            if (strcmp (extention, ".KO5") == 0)
                 cartType = KonamiWithSCC;
             if (strcmp (extention, ".A8K") == 0)
                 cartType = ASCII8k;
