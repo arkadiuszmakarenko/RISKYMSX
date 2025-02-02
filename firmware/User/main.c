@@ -36,7 +36,7 @@ int main (void) {
             break;
 
         case MSXTERMINAL:
-            // handle termianl in main loop
+            ProcessMSXTerminal();
             break;
 
         default:

@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BUFFER_SIZE 2048  // Ensure this is a power of 2 for bitwise wrapping
+#define BUFFER_SIZE 1024  // Ensure this is a power of 2 for bitwise wrapping
 #define BUFFER_MINI_SIZE 16
 
 typedef struct {
@@ -21,6 +21,7 @@ int append (CircularBuffer *cb, uint32_t item);
 int pop (CircularBuffer *cb, uint32_t *item);
 int popmini (CircularBuffer *cb, uint32_t *item);
 void appendString (CircularBuffer *cb, const char *inputString);
+int isFull (CircularBuffer *cb);
 
 int strToInt (const char *str);
 void intToString (int num, char *str);

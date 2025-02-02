@@ -14,11 +14,17 @@ void initMiniBuffer (CircularBuffer *cb) {
     cb->tail = 0;
 }
 
-int append (CircularBuffer *cb, uint32_t item) {
+int isFull (CircularBuffer *cb) {
     uint8_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
     if (next == cb->tail) {
-        return -1;                                      // Buffer is full
+        return 1;
     }
+    return 0;
+}
+
+int append (CircularBuffer *cb, uint32_t item) {
+    uint8_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
+    while (next == cb->tail) { };
     cb->buffer[cb->head] = item;
     cb->head = next;
     return 0;  // Success
@@ -116,7 +122,7 @@ int strToInt (const char *str) {
 
 int isPrintableCharacter (int value) {
 
-    if (value >= 32 && value <= 127) {
+    if (value >= 0x21 && value <= 0x7E) {
         return 1;
     }
     return 0;

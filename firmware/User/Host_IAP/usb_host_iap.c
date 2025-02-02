@@ -796,11 +796,81 @@ int MountDrive() {
     return op_flag;
 }
 
+int printFilename (uint32_t index, int size) {
+    volatile uint32_t ret;
+    // clear buffer
+    for (int x = 0; x < LONG_NAME_BUF_LEN; x++) {
+        LongNameBuf[x] = 0x20;
+    }
+
+
+    if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
+        strcpy ((char *)mCmdParam.Open.mPathName, "/*");
+        ret = strlen ((char *)mCmdParam.Open.mPathName);
+        mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
+        CHRV3vFileSize = index;                // look for first occurance of file with cart.
+        /* open file */
+        ret = CHRV3FileOpen();
+        if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
+            return 0;
+        }
+        if (ret == ERR_FOUND_NAME) {
+            ret = CHRV3FileOpen();
+            if (ret != ERR_OPEN_DIR) {
+                ret = CHRV3GetLongName();
+                if (ret == ERR_SUCCESS) {
+                    append (&scb, 0x20);
+                    for (int j = 0; j != size; j++) {
+                        if (isPrintableCharacter (LongNameBuf[j])) {
+                            append (&scb, LongNameBuf[j]);
+                        }
+                    }
+                    append (&scb, 0x0D);
+                    append (&scb, 0x0A);
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int listFiles (int FileList[20], uint32_t page) {
+    int size = 0;
+
+    volatile uint32_t ret;
+    if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
+        int index = 0 + (page * 20);
+        for (;;) {
+            strcpy ((char *)mCmdParam.Open.mPathName, "/*");
+            ret = strlen ((char *)mCmdParam.Open.mPathName);
+            mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
+            CHRV3vFileSize = index;                // look for first occurance of file with cart.
+            /* open file */
+            ret = CHRV3FileOpen();
+            if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
+                return size;
+            }
+            if (ret == ERR_FOUND_NAME) {
+
+                ret = CHRV3FileOpen();
+                if (ret != ERR_OPEN_DIR) {
+                    if (size == 20)
+                        return size;
+                    FileList[size] = index;
+                    size++;
+                }
+            }
+            index++;
+        }
+        return size;
+    }
+    return 0;
+}
+
 void ListFiles() {
     volatile uint32_t ret;
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
-
-
         int index = 1;
         for (index = 1; index < 100; index++) {
             strcpy ((char *)mCmdParam.Open.mPathName, "/*");

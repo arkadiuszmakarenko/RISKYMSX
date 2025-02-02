@@ -27,7 +27,125 @@
 extern CircularBuffer scb;
 extern CircularBuffer icb;
 
-extern unsigned char msxterm[117];
+static unsigned char msxterm[117] = {
+    'A',
+    'B',
+    04,
+    '@',
+    '>',
+    ' ',
+    '2',
+    0257,
+    0363,
+    '!',
+    017,
+    0,
+    '"',
+    0352,
+    0363,
+    '"',
+    0351,
+    0363,
+    '>',
+    01,
+    0315,
+    '_',
+    0,
+    '!',
+    'm',
+    '@',
+    021,
+    0,
+    '8',
+    01,
+    010,
+    0,
+    0315,
+    0134,
+    0,
+    '>',
+    010,
+    '!',
+    03,
+    033,
+    0315,
+    'M',
+    0,
+    '!',
+    '8',
+    '@',
+    021,
+    0,
+    0340,
+    01,
+    '5',
+    0,
+    0325,
+    0355,
+    0260,
+    0311,
+    ':',
+    0377,
+    0177,
+    0376,
+    03,
+    0312,
+    0,
+    0,
+    0376,
+    04,
+    '(',
+    026,
+    0247,
+    0314,
+    ' ',
+    0340,
+    0304,
+    0242,
+    0,
+    0315,
+    0234,
+    0,
+    '(',
+    0350,
+    0315,
+    0237,
+    0,
+    '2',
+    0375,
+    0177,
+    030,
+    0340,
+    'v',
+    0311,
+    ':',
+    0377,
+    0177,
+    '!',
+    01,
+    033,
+    0315,
+    'M',
+    0,
+    ':',
+    0377,
+    0177,
+    '=',
+    '-',
+    0315,
+    'M',
+    0,
+    030,
+    0313,
+    ' ',
+    '0',
+    '8',
+    '<',
+    '8',
+    '0',
+    ' ',
+    0,
+};
 
 // MSX State bank offsets.
 struct MSXState {
@@ -60,7 +178,7 @@ void Init_Cart (void) {
     cfg = (CART_CFG volatile *)cfgpnt;
     type = cfg->CartType;
 
-    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) {
+    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_8) != 0) {
         type = MSXTERMINAL;
     }
 
@@ -161,14 +279,17 @@ void Init_Cart (void) {
         break;
 
     case MSXTERMINAL:
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  //  7 - 0111
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
         break;
 
 
     default:
-        NVIC_EnableIRQ (EXTI3_IRQn);
-        SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
+        break;
     }
 }
 

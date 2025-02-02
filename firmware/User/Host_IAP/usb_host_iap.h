@@ -84,6 +84,7 @@ extern volatile uint32_t Flash_Operation_Key1; /* IAP Flash operation Key-code V
 #define TRUE 1
 #define FALSE 0
 
+#define FILENAME_LENGTH 35
 
 /*******************************************************************************/
 /* Function Extrapolation */
@@ -103,7 +104,9 @@ extern void IAP_Initialization (void);
 extern void MapperCode_Write (CartType type, uint32_t fileSize);
 
 extern int MountDrive (void);
-extern void ListFiles (void);
+extern int printFilename (uint32_t index, int size);
+int listFiles (int *array, uint32_t page);
+
 extern void ProgramCart (uint32_t FileIndex, CartType cartType);
 
 extern int8_t CHRV3GetLongName (void);
