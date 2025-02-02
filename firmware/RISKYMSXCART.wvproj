@@ -721,9 +721,9 @@
 	"flashConfig": {
 		"mcutype": "CH32V30x",
 		"address": "0x08000000",
-		"target_path": "/home/makaron/Repo/RISKYMSXCart/firmware/obj/RISKYMSXCART.hex",
+		"target_path": "/home/makaron/Repo/RISKYMSX/firmware/obj/RISKYMSXCART.hex",
 		"clkSpeed": "High",
-		"debug_interface_mode": "1-wire serial",
+		"debug_interface_mode": "",
 		"erase": true,
 		"program": true,
 		"verify": true,

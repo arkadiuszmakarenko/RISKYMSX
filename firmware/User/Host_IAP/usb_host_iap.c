@@ -13,6 +13,12 @@
 #include "usb_host_iap.h"
 #include "cart.h"
 #include <stdio.h>
+#include "utils.h"
+
+
+/*Cart buffer*/
+extern CircularBuffer scb;
+uint8_t LongNameBuf[LONG_NAME_BUF_LEN];
 
 /* Variable */
 __attribute__ ((aligned (4))) uint8_t IAPLoadBuffer[DEF_MAX_IAP_BUFFER_LEN];
@@ -23,9 +29,8 @@ volatile uint32_t IAP_WriteIn_Length;
 volatile uint32_t IAP_WriteIn_Count;
 volatile uint32_t File_Length;
 
-char *FileName;
-volatile uint32_t start_address;
-volatile uint32_t end_address;
+volatile uint32_t start_address = 0x08008000;
+volatile uint32_t end_address = 0x08048000;
 
 
 struct _ROOT_HUB_DEVICE RootHubDev[DEF_TOTAL_ROOT_HUB];
@@ -756,27 +761,23 @@ uint8_t IAP_USBH_PreDeal (void) {
     return DEF_IAP_DEFAULT;
 }
 
-void IAP_Configure (char *file, uint32_t start_flash_address, uint32_t end_flash_address) {
-    FileName = file;
-    start_address = start_flash_address;
-    end_address = end_flash_address;
+void MapperCode_Write (CartType type, uint32_t cartSize) {
+    uint32_t cfg_address = 0x08007F00;
+    uint16_t volatile cartSizekB = ((cartSize + 512) / 1024);
+
+    uint32_t cfg[64];
+    cfg[0] = type;
+    cfg[1] = cartSizekB;
+    cfg[2] = cartSize;
+    FLASH_Unlock_Fast();
+    FLASH_ErasePage_Fast (cfg_address);
+    FLASH_ProgramPage_Fast (cfg_address, cfg);
+    FLASH_Lock_Fast();
 }
 
-/*********************************************************************
- * @fn      IAP_Main_Deal
- *
- * @brief   IAP Transaction Processing
- *
- * @return  none
- */
-uint8_t IAP_Main_Deal (void) {
-    uint32_t done = 0;
-    CartType cartType = ROM32k;
-    uint32_t totalcount, t;
-    uint16_t i, ret;
-
-    static uint8_t op_flag = 0;
-    /* Detect USB Device & Enumeration processing */
+int MountDrive() {
+    int i, ret;
+    static int op_flag = 0;
     ret = IAP_USBH_PreDeal();
     if (ret == DEF_IAP_SUCCESS) {
         /* Wait for uDisk Ready */
@@ -792,46 +793,95 @@ uint8_t IAP_Main_Deal (void) {
             Delay_Ms (50);
         }
     }
+    return op_flag;
+}
 
-    if ((CHRV3DiskStatus >= DISK_MOUNTED) && op_flag) {
-        op_flag = 0;
+void ListFiles() {
+    volatile uint32_t ret;
+    if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
+
+
+        int index = 1;
+        for (index = 1; index < 100; index++) {
+            strcpy ((char *)mCmdParam.Open.mPathName, "/*");
+            ret = strlen ((char *)mCmdParam.Open.mPathName);
+            mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
+            CHRV3vFileSize = index;                // look for first occurance of file with cart.
+            /* open file */
+            ret = CHRV3FileOpen();
+            if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
+                return;
+            }
+            if (ret == ERR_FOUND_NAME) {
+
+                ret = CHRV3FileOpen();
+                if (ret != ERR_OPEN_DIR) {
+
+                    uint8_t ret;
+                    uint16_t j;
+
+                    ret = CHRV3GetLongName();
+                    if (ret == ERR_SUCCESS) {
+
+                        char str[5];
+                        intToString (index, str);
+
+                        appendString (&scb, str);
+                        appendString (&scb, "-");
+
+                        //  int position = findLastCharPositionOfSubstring ((const char *)LongNameBuf, 50, "ROM");
+
+                        for (j = 0; j != 40; j++) {
+                            if (isPrintableCharacter (LongNameBuf[j])) {
+                                append (&scb, LongNameBuf[j]);
+                            }
+                        }
+
+                        for (j = 0; j != LONG_NAME_BUF_LEN; j++) {
+                            LongNameBuf[j] = 0x20;
+                        }
+
+
+                        append (&scb, 0x0D);
+                        append (&scb, 0x0A);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void ProgramCart (uint32_t FileIndex, CartType cartType) {
+    uint32_t totalcount, t;
+    uint16_t i, ret;
+    char message[10];
+
+    if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         /* Make sure the flash operation is correct */
         Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
 
-        strcpy ((char *)mCmdParam.Open.mPathName, FileName);
+        strcpy ((char *)mCmdParam.Open.mPathName, "/*");
         ret = strlen ((char *)mCmdParam.Open.mPathName);
         mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
-        CHRV3vFileSize = 1;                    // look for first occurance of file with cart.
+        CHRV3vFileSize = FileIndex;            // look for first occurance of file with cart.
         /* open file */
         ret = CHRV3FileOpen();
         /* file or directory not found */
         if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-            return 1;  // file not found
+            appendString (&scb, "FileNotFound!");  // file not found
         }
         /* Found file, start IAP processing */
         else {
-            /* Read format */
-            char *extention = strchr ((const char *)mCmdParam.Open.mPathName, '.');
-            if (strcmp (extention, ".R32") == 0)
-                cartType = ROM32k;
-            if (strcmp (extention, ".R48") == 0)
-                cartType = ROM48k;
-            if (strcmp (extention, ".KO4") == 0)
-                cartType = KonamiWithoutSCC;
-            if (strcmp (extention, ".KO5") == 0)
-                cartType = KonamiWithSCC;
-            if (strcmp (extention, ".A8K") == 0)
-                cartType = ASCII8k;
-            if (strcmp (extention, ".A16") == 0)
-                cartType = ASCII16k;
-            if (strcmp (extention, ".N16") == 0)
-                cartType = NEO16;
-            if (strcmp (extention, ".N8K") == 0)
-                cartType = NEO8;
+            appendString (&scb, "FileFound ");
+            appendString (&scb, (const char *)mCmdParam.Open.mPathName);
 
+            ret = CHRV3FileOpen();
+            //  appendString (&scb, "FileFound");
             /* Read File Size */
             totalcount = CHRV3vFileSize;
             File_Length = totalcount;
+            intToString (totalcount, message);
+            // appendString (&scb, message);
             /* Make sure the flash operation is correct */
             Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
             IAP_Load_Addr_Offset = 0;
@@ -839,6 +889,7 @@ uint8_t IAP_Main_Deal (void) {
             IAP_WriteIn_Count = 0;
             /* Binary file read & iap write in */
             while (totalcount) {
+
                 /* If the file is large and cannot be read at once, you can call CH103ByteRead again to continue reading, and the file pointer will move backward automatically.*/
                 /* MAX_PATH_LEN: the maximum path length, including all slash separators and decimal point separators and path terminator 00H */
                 if (totalcount > (MAX_PATH_LEN - 1)) {
@@ -859,8 +910,10 @@ uint8_t IAP_Main_Deal (void) {
                     /* The whole package part of the IAP user file */
                     if (IAP_WriteIn_Length == DEF_MAX_IAP_BUFFER_LEN) {
                         /* Write Data In Flash */
+
                         ret = IAP_Flash_Program (start_address + IAP_Load_Addr_Offset, IAPLoadBuffer, IAP_WriteIn_Length);
                         mStopIfError (ret);
+
                         IAP_Load_Addr_Offset += DEF_MAX_IAP_BUFFER_LEN;
                         IAP_WriteIn_Count += IAP_WriteIn_Length;
                         IAP_WriteIn_Length = 0;
@@ -884,6 +937,7 @@ uint8_t IAP_Main_Deal (void) {
             }
             /* Close the file be operated now */
             CHRV3FileClose();
+
             /* Disposal of remaining package length  */
             ret = IAP_Flash_Program (start_address + IAP_Load_Addr_Offset, IAPLoadBuffer, IAP_WriteIn_Length);
             mStopIfError (ret);
@@ -891,29 +945,188 @@ uint8_t IAP_Main_Deal (void) {
             /* Check actual write length and file length */
             if (CHRV3vFileSize == IAP_WriteIn_Count) {
                 MapperCode_Write (cartType, File_Length);
-                done = 1;
                 FLASH_Lock_Fast();
                 GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+                appendString (&scb, "100% ");
             } else {
                 /* IAP length checksum error */
                 FLASH_Lock_Fast();
             }
         }
     }
-
-    return done;
 }
 
-void MapperCode_Write (CartType type, uint32_t cartSize) {
-    uint32_t cfg_address = 0x08007F00;
-    uint16_t volatile cartSizekB = ((cartSize + 512) / 1024);
+int8_t CHRV3GetLongName (void) {
+    uint8_t i;
+    uint16_t index;
+    uint32_t BackFdtSector;
+    uint8_t sum;
+    // uint16_t  Backoffset;
+    uint16_t offset;
+    uint8_t FirstBit;
+    uint8_t BackPathBuf[MAX_PATH_LEN];
 
-    uint32_t cfg[64];
-    cfg[0] = type;
-    cfg[1] = cartSizekB;
-    cfg[2] = cartSize;
-    FLASH_Unlock_Fast();
-    FLASH_ErasePage_Fast (cfg_address);
-    FLASH_ProgramPage_Fast (cfg_address, cfg);
-    FLASH_Lock_Fast();
+    i = CHRV3FileOpen();
+    if ((i == ERR_SUCCESS) || (i == ERR_OPEN_DIR)) {
+        for (i = 0; i != MAX_PATH_LEN; i++)
+            BackPathBuf[i] = mCmdParam.Open.mPathName[i];
+        sum = CheckNameSum (&DISK_BASE_BUF[CHRV3vFdtOffset]);
+        index = 0;
+        FirstBit = FALSE;
+        //  Backoffset = CHRV3vFdtOffset;
+        BackFdtSector = CHRV3vFdtLba;
+        if (CHRV3vFdtOffset == 0) {
+            if (FirstBit == FALSE)
+                FirstBit = TRUE;
+            i = GetUpSectorData (&BackFdtSector);
+            if (i == ERR_SUCCESS) {
+                CHRV3vFdtOffset = CHRV3vSectorSize;
+                goto P_NEXT1;
+            }
+        } else {
+
+P_NEXT1:
+            offset = CHRV3vFdtOffset;
+            while (1) {
+                if (offset != 0) {
+                    offset = offset - 32;
+                    if ((DISK_BASE_BUF[offset + 11] == ATTR_LONG_NAME) && (DISK_BASE_BUF[offset + 13] == sum)) {
+                        if ((index + 26) > LONG_NAME_BUF_LEN)
+                            return ERR_BUF_OVER;
+
+                        for (i = 0; i != 5; i++) {
+#if UNICODE_ENDIAN == 1
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + i * 2 + 2];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + i * 2 + 1];
+#else
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + i * 2 + 1];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + i * 2 + 2];
+#endif
+                        }
+
+                        for (i = 0; i != 6; i++) {
+#if UNICODE_ENDIAN == 1
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 14 + i * 2 + 1];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + +14 + i * 2];
+#else
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + +14 + i * 2];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 14 + i * 2 + 1];
+#endif
+                        }
+
+                        for (i = 0; i != 2; i++) {
+#if UNICODE_ENDIAN == 1
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 28 + i * 2 + 1];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 28 + i * 2];
+#else
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 28 + i * 2];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 28 + i * 2 + 1];
+#endif
+                        }
+
+                        if (DISK_BASE_BUF[offset] & 0X40) {
+                            if (!(((LongNameBuf[index - 1] == 0x00) && (LongNameBuf[index - 2] == 0x00)) || ((LongNameBuf[index - 1] == 0xFF) && (LongNameBuf[index - 2] == 0xFF)))) {
+                                if (index + 52 > LONG_NAME_BUF_LEN)
+                                    return ERR_BUF_OVER;
+                                LongNameBuf[index] = 0x00;
+                                LongNameBuf[index + 1] = 0x00;
+                            }
+                            return ERR_SUCCESS;
+                        }
+                    } else
+                        return ERR_NO_NAME;
+                } else {
+                    if (FirstBit == FALSE)
+                        FirstBit = TRUE;
+                    else {
+                        for (i = 0; i != MAX_PATH_LEN; i++)
+                            mCmdParam.Open.mPathName[i] = BackPathBuf[i];
+                    }
+                    i = GetUpSectorData (&BackFdtSector);
+                    if (i == ERR_SUCCESS) {
+                        CHRV3vFdtOffset = CHRV3vSectorSize;
+                        goto P_NEXT1;
+                    } else
+                        return i;
+                }
+            }
+        }
+    }
+    return i;
+}
+
+uint8_t CheckNameSum (uint8_t *p) {
+    uint8_t FcbNameLen;
+    uint8_t Sum;
+
+    Sum = 0;
+    for (FcbNameLen = 0; FcbNameLen != 11; FcbNameLen++)
+        Sum = ((Sum & 1) ? 0x80 : 0) + (Sum >> 1) + *p++;
+    return Sum;
+}
+
+uint8_t GetUpSectorData (uint32_t *NowSector) {
+    uint8_t i;
+    uint8_t len;
+    uint32_t index;
+
+    index = 0;
+    for (len = 0; len != MAX_PATH_LEN; len++) {
+        if (mCmdParam.Open.mPathName[len] == 0)
+            break;
+    }
+
+    for (i = len - 1; i != 0xff; i--) {
+        if ((mCmdParam.Open.mPathName[i] == '\\') || (mCmdParam.Open.mPathName[i] == '/'))
+            break;
+    }
+    mCmdParam.Open.mPathName[i] = 0x00;
+
+    if (i == 0) {
+        mCmdParam.Open.mPathName[0] = '/';
+        mCmdParam.Open.mPathName[1] = 0;
+        i = CHRV3FileOpen();
+        if (i == ERR_OPEN_DIR)
+            goto P_NEXT0;
+    } else {
+        i = CHRV3FileOpen();
+        if (i == ERR_OPEN_DIR) {
+            while (1) {
+P_NEXT0:
+                mCmdParam.Locate.mSectorOffset = index;
+                i = CHRV3FileLocate();
+                if (i == ERR_SUCCESS) {
+                    if (*NowSector == mCmdParam.Locate.mSectorOffset) {
+                        if (index == 0)
+                            return ERR_NO_NAME;
+                        mCmdParam.Locate.mSectorOffset = --index;
+                        i = CHRV3FileLocate();
+                        if (i == ERR_SUCCESS) {
+                            *NowSector = mCmdParam.Locate.mSectorOffset;
+                            mCmdParam.Read.mSectorCount = 1;
+                            mCmdParam.Read.mDataBuffer = &DISK_BASE_BUF[0];
+                            i = CHRV3FileRead();
+                            return i;
+                        } else
+                            return i;
+                    }
+                } else
+                    return i;
+                index++;
+            }
+        }
+    }
+    return i;
 }

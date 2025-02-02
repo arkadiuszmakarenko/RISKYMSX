@@ -24,15 +24,23 @@
 #pragma GCC push_options
 #pragma GCC optimize("Ofast")
 
+extern CircularBuffer scb;
+extern CircularBuffer icb;
+
+extern unsigned char msxterm[117];
+
 // MSX State bank offsets.
 struct MSXState {
     uint32_t bankOffsets[16];
 } state;
 
 // global variables#
+CartType volatile type;
 volatile struct MSXState *state_pointer;
 volatile uint8_t *restrict cartpnt;
 volatile CircularBuffer *buf;
+volatile CircularBuffer *sbuf;
+volatile CircularBuffer *ibuf;
 
 // Config Cart emulation hardware.
 void Init_Cart (void) {
@@ -40,15 +48,21 @@ void Init_Cart (void) {
     state_pointer = &state;
     cartpnt = (uint8_t *)&__cart_section_start;
     buf = &cb;
+    sbuf = &scb;
+    ibuf = &icb;
 
 
     FLASH_Enhance_Mode (ENABLE);
-    CartType volatile type;
+
     CART_CFG volatile *cfg;
     // Read config from config flash location.
     uint8_t *restrict cfgpnt = (uint8_t *)&__cfg_section_start;
     cfg = (CART_CFG volatile *)cfgpnt;
     type = cfg->CartType;
+
+    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) {
+        type = MSXTERMINAL;
+    }
 
     switch (type) {
     case ROM32k:
@@ -63,7 +77,7 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunCart48k, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithoutSCC:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);// 3 - 0011
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 3 - 0011
         GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
 
         // configure initial banks state for Konami without SCC
@@ -75,37 +89,32 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunKonamiWithoutSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCC:
-        if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) { 
-            SCC_Init();
-            
-            GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET); // 4 - 0100
+        SCC_Init();
+        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // 4 - 0100
+        // configure initial banks state for Konami with SCC
+        state.bankOffsets[2] = -0x4000;  // 0x5000
+        state.bankOffsets[3] = -0x6000;  // 0x7000
+        state.bankOffsets[4] = -0x8000;  // 0x9000
+        state.bankOffsets[5] = -0xA000;  // 0xB000
 
-            // configure initial banks state for Konami with SCC
-            state.bankOffsets[2] = -0x4000;  // 0x5000
-            state.bankOffsets[3] = -0x6000;  // 0x7000
-            state.bankOffsets[4] = -0x8000;  // 0x9000
-            state.bankOffsets[5] = -0xA000;  // 0xB000
-
-            NVIC_EnableIRQ (EXTI3_IRQn);
-            NVIC_SetPriority (EXTI3_IRQn, 0);
-            SetVTFIRQ ((u32)RunKonamiWithSCC, EXTI3_IRQn, 0, ENABLE);
-        } else {
-            GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 5 0101
-            GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
-
-            // configure initial banks state for Konami with SCC
-            state.bankOffsets[2] = -0x4000;  // 0x5000
-            state.bankOffsets[3] = -0x6000;  // 0x7000
-            state.bankOffsets[4] = -0x8000;  // 0x9000
-            state.bankOffsets[5] = -0xA000;  // 0xB000
-
-            NVIC_EnableIRQ (EXTI3_IRQn);
-            NVIC_SetPriority (EXTI3_IRQn, 0);
-            SetVTFIRQ ((u32)RunKonamiWithSCCNOSCC, EXTI3_IRQn, 0, ENABLE);
-        }
-
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        NVIC_SetPriority (EXTI3_IRQn, 0);
+        SetVTFIRQ ((u32)RunKonamiWithSCC, EXTI3_IRQn, 0, ENABLE);
         break;
+    case KonamiWithSCCNOSCC:
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 5 0101
+        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
 
+        // configure initial banks state for Konami with SCC
+        state.bankOffsets[2] = -0x4000;  // 0x5000
+        state.bankOffsets[3] = -0x6000;  // 0x7000
+        state.bankOffsets[4] = -0x8000;  // 0x9000
+        state.bankOffsets[5] = -0xA000;  // 0xB000
+
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        NVIC_SetPriority (EXTI3_IRQn, 0);
+        SetVTFIRQ ((u32)RunKonamiWithSCCNOSCC, EXTI3_IRQn, 0, ENABLE);
+        break;
 
     case ASCII8k:
         GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);  //  6 - 0110
@@ -138,7 +147,7 @@ void Init_Cart (void) {
         state.bankOffsets[2] = 0;
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunNEO8, EXTI3_IRQn, 0, ENABLE);
-    break;
+        break;
 
     case NEO16:
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 9 - 1001
@@ -149,14 +158,17 @@ void Init_Cart (void) {
         state.bankOffsets[2] = 0;
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunNEO16, EXTI3_IRQn, 0, ENABLE);
-    break;
+        break;
 
-
+    case MSXTERMINAL:
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
+        break;
 
 
     default:
         NVIC_EnableIRQ (EXTI3_IRQn);
-        SetVTFIRQ ((u32)RunCart32k, EXTI3_IRQn, 0, ENABLE);
+        SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
     }
 }
 
@@ -236,7 +248,7 @@ void RunKonamiWithoutSCC (void) {
 }
 
 void RunKonamiWithSCC (void) {
-     volatile uint16_t address;
+    volatile uint16_t address;
     volatile uint8_t WriteData;
 
     // clear interrupt flag
@@ -247,34 +259,35 @@ void RunKonamiWithSCC (void) {
     WriteData = ((uint16_t)GPIOD->INDR);
 
     // loop - we need to do wait for potential write
-    
-        // Handle read cycle
-        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-        {
-            // Decode addresses and Load data from flash memory
-            GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
-            // Change GPIO Mode from Input (floating) to PushPull
-            GPIOD->CFGLR = 0x33333333;
-            // wait till cs12 is enabled
-            while ((GPIOB->INDR & 0x0008) == 0) { };
-            GPIOD->CFGLR = 0x44444444;
-            return;
-        }
-while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+
+    // Handle read cycle
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+    {
+        // Decode addresses and Load data from flash memory
+        GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
+        // Change GPIO Mode from Input (floating) to PushPull
+        GPIOD->CFGLR = 0x33333333;
+        // wait till cs12 is enabled
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = 0x44444444;
+        return;
+    }
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         // Handle Write cycle
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
         {
-            if (address > 0xB000) return;
-                state_pointer->bankOffsets[address >> 13] = (WriteData << 13) - (address - 0x1000);
-                uint8_t next;
-                if (buf->head + 1 >= BUFFER_SIZE) {
-                    next = 0;
-                } else {
-                    next = buf->head + 1;
-                }
-                buf->buffer[buf->head] = (((uint32_t)address << 16) | WriteData);
-                buf->head = next;
-            
+            if (address > 0xB000)
+                return;
+            state_pointer->bankOffsets[address >> 13] = (WriteData << 13) - (address - 0x1000);
+            uint8_t next;
+            if (buf->head + 1 >= BUFFER_SIZE) {
+                next = 0;
+            } else {
+                next = buf->head + 1;
+            }
+            buf->buffer[buf->head] = (((uint32_t)address << 16) | WriteData);
+            buf->head = next;
+
             return;
         }
     }
@@ -410,9 +423,8 @@ void Run16kASCII (void) {
     return;
 }
 
-
-void RunNEO16(void) {
-     volatile uint16_t address;
+void RunNEO16 (void) {
+    volatile uint16_t address;
     volatile uint8_t WriteData;
 
     // clear interrupt flag
@@ -422,38 +434,36 @@ void RunNEO16(void) {
     // read data from the data bus very early to give as much time in write cycle as possible
     WriteData = ((uint16_t)GPIOD->INDR);
 
-        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-        {
-            GPIOD->CFGLR = 0x33333333;
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+    {
+        GPIOD->CFGLR = 0x33333333;
 
-              uint8_t bank = address >> 14;
-                if (bank > 2)
-                {
-                    GPIOD->OUTDR = 0xFF; // skip
-                }
-                else
-                {
-                    uint32_t offset = ((state_pointer->bankOffsets[bank]) << 14) + (address & 0x3FFF);
-                    GPIOD->OUTDR = * ( cartpnt + offset);
-                }
-
-            while ((GPIOB->INDR & 0x0008) == 0) { };
-            GPIOD->CFGLR = 0x44444444;
-            return;
+        uint8_t bank = address >> 14;
+        if (bank > 2) {
+            GPIOD->OUTDR = 0xFF;  // skip
+        } else {
+            uint32_t offset = ((state_pointer->bankOffsets[bank]) << 14) + (address & 0x3FFF);
+            GPIOD->OUTDR = *(cartpnt + offset);
         }
-while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = 0x44444444;
+        return;
+    }
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
         {
-            if (address > 0xB000) return;
+            if (address > 0xB000)
+                return;
 
-               uint8_t bank = ((address >> 12) & 0x03) - 1;
-                if (bank > 2)
-                return; // skip
-                if (address & 1) // Set bank register MSB
+            uint8_t bank = ((address >> 12) & 0x03) - 1;
+            if (bank > 2)
+                return;       // skip
+            if (address & 1)  // Set bank register MSB
                 state_pointer->bankOffsets[bank] = ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
-                    else // Set bank register LSB
+            else              // Set bank register LSB
                 state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
-                
+
             return;
         }
     }
@@ -461,9 +471,8 @@ while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
     return;
 }
 
-
-void RunNEO8(void) {
-     volatile uint16_t address;
+void RunNEO8 (void) {
+    volatile uint16_t address;
     volatile uint8_t WriteData;
 
     // clear interrupt flag
@@ -473,38 +482,90 @@ void RunNEO8(void) {
     // read data from the data bus very early to give as much time in write cycle as possible
     WriteData = ((uint16_t)GPIOD->INDR);
 
-        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-        {
-            GPIOD->CFGLR = 0x33333333;
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+    {
+        GPIOD->CFGLR = 0x33333333;
 
-                   uint8_t bank = address >> 13;
-                if (bank > 5)
-                {
-                    GPIOD->OUTDR = 0xFF; 
-                }
-                else
-                {
-                     uint32_t offset =((state_pointer->bankOffsets[bank]) << 13) + (address & 0x1FFF);
-                    GPIOD->OUTDR = * ( cartpnt + offset);
-                }
-            while ((GPIOB->INDR & 0x0008) == 0) { };
-            GPIOD->CFGLR = 0x44444444;
-            return;
+        uint8_t bank = address >> 13;
+        if (bank > 5) {
+            GPIOD->OUTDR = 0xFF;
+        } else {
+            uint32_t offset = ((state_pointer->bankOffsets[bank]) << 13) + (address & 0x1FFF);
+            GPIOD->OUTDR = *(cartpnt + offset);
         }
-while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = 0x44444444;
+        return;
+    }
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
         {
-            if (address > 0xB000) return;
-               uint8_t bank = ((address >> 11) & 0x07) - 2;
-                if (bank > 5)
-                    return; // skip
-                if (address & 1) // Set bank register MSB
-                    state_pointer->bankOffsets[bank]= ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
-                    else // Set bank register LSB
-                    state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
+            if (address > 0xB000)
+                return;
+            uint8_t bank = ((address >> 11) & 0x07) - 2;
+            if (bank > 5)
+                return;       // skip
+            if (address & 1)  // Set bank register MSB
+                state_pointer->bankOffsets[bank] = ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
+            else              // Set bank register LSB
+                state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
             return;
         }
     }
+
+    return;
+}
+
+void RunMSXTerminal (void) {
+    volatile uint16_t address;
+    // volatile uint8_t WriteData;
+    // static uint8_t msxvar = 0x20;
+
+    // clear interrupt flag
+    EXTI->INTFR = EXTI_Line3;
+    // read address
+    address = (uint16_t)GPIOE->INDR;
+
+
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+    {
+        GPIOD->CFGLR = 0x33333333;
+
+        if (address == 0x7FFF) {
+            if (sbuf->head == sbuf->tail) {
+                GPIOD->OUTDR = 0x00;
+            } else {
+                GPIOD->OUTDR = sbuf->buffer[sbuf->tail];
+                sbuf->tail = (sbuf->tail + 1) & (BUFFER_SIZE - 1);
+            }
+        }
+
+
+        // Read address lines and load data from flash for that address, and load data to data port gpio
+        if (address >= 0x4000 && address < 0x4FFF) {
+            GPIOD->OUTDR = *(msxterm + (address - 0x4000));
+        }
+
+        // wait till end of read cycle
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        // change data port back to input / floating
+        GPIOD->CFGLR = 0x44444444;
+    }
+
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
+        {
+            uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+            if (address == 0x7FFD) {
+                uint8_t next = (ibuf->head + 1) & (BUFFER_MINI_SIZE - 1);
+                ibuf->buffer[ibuf->head] = WriteData;
+                ibuf->head = next;
+            }
+
+            return;
+        }
+    }
+
 
     return;
 }
