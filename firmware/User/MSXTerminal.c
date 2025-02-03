@@ -22,13 +22,12 @@ void Init_MSXTerminal (void) {
     IAP_Initialization();
     appendString (&scb, "Insert USB.");
     while (MountDrive() == 0) { };
-    menu.pageName = MAIN;
     menu.page_usb = 0;
     PrintMainMenu (0);
-
 }
 
 void PrintMainMenu (int page) {
+    menu.pageName = MAIN;
     menu.FileIndex = 0;
     menu.FileIndexSize = 0;
     ClearScreen();
@@ -43,19 +42,20 @@ void PrintMainMenu (int page) {
     for (int i = 0; i < menu.FileIndexSize; i++) {
         printFilename (FileList[i]);
     }
-    MoveCursor(23,0);
+    MoveCursor (23, 0);
     appendString (&scb, "<UP><DOWN><LEFT><RIGHT><RETURN>");
 
 
-    //Show cursor
+    // Show cursor
     append (&scb, 0x1B);
     append (&scb, 0x79);
     append (&scb, 0x35);
 
-    MoveCursor(1,0);
+    MoveCursor (1, 0);
 }
 
 void PrintMapperMenu() {
+    menu.pageName = MAPPER;
     ClearScreen();
     appendString (&scb, "          RISKY MSX ");
     NewLine();
@@ -81,19 +81,18 @@ void PrintMapperMenu() {
     NewLine();
     appendString (&scb, " NEO 16KB");
     NewLine();
-    MoveCursor(23,0);
+    MoveCursor (23, 0);
     appendString (&scb, " <UP><DOWN><RETURN><ESCAPE> ");
-    MoveCursor(4,0);
+    MoveCursor (4, 0);
 }
 
 void ProcessMSXTerminal (void) {
     uint32_t key;
     if (popmini (&icb, &key) == 0) {
-            if (key == 0x1B)
-            {
-                PrintMainMenu(0);
-                return;
-            }
+        if (key == 0x1B) {
+            menu.page_usb = 0;
+            PrintMainMenu (0);
+        }
 
         switch (menu.pageName) {
         case MAIN:
@@ -118,14 +117,13 @@ void ProcessMSXTerminal (void) {
             }
 
             if (key == 0x1F) {
-                if (menu.FileIndex != (menu.FileIndexSize - 1) ) {
+                if (menu.FileIndex != (menu.FileIndexSize - 1)) {
                     menu.FileIndex++;
                     CursorDown();
                 }
             }
 
             if (key == 0x0D) {
-                menu.pageName = MAPPER;
                 menu.CartTypeIndex = 0;
                 PrintMapperMenu();
             }
@@ -156,33 +154,32 @@ void ProcessMSXTerminal (void) {
                 NewLine();
                 appendString (&scb, "Mapper type:");
                 NewLine();
-                switch(menu.CartTypeIndex)
-                {
-                    case ROM32k:
+                switch (menu.CartTypeIndex) {
+                case ROM32k:
                     appendString (&scb, "Standard ROM 32k");
                     break;
-                    case ROM48k:
+                case ROM48k:
                     appendString (&scb, "Standard ROM 48k");
                     break;
-                    case KonamiWithoutSCC:
+                case KonamiWithoutSCC:
                     appendString (&scb, "Konami without SCC");
                     break;
-                    case KonamiWithSCC:
+                case KonamiWithSCC:
                     appendString (&scb, "Konami With SCC (EN)");
                     break;
-                    case KonamiWithSCCNOSCC:
+                case KonamiWithSCCNOSCC:
                     appendString (&scb, "Konami With SCC (DIS)");
                     break;
-                    case ASCII8k:
+                case ASCII8k:
                     appendString (&scb, "ASCII 8k");
                     break;
-                    case ASCII16k:
+                case ASCII16k:
                     appendString (&scb, "ASCII 16k");
                     break;
-                    case NEO16:
+                case NEO16:
                     appendString (&scb, "Neo 16k");
                     break;
-                    case NEO8:
+                case NEO8:
                     appendString (&scb, "Neo 8k");
                     break;
                 }
@@ -196,33 +193,29 @@ void ProcessMSXTerminal (void) {
     }
 }
 
-void NewLine(void)
-{
+void NewLine (void) {
     append (&scb, 0x0D);
     append (&scb, 0x0A);
 }
 
-void MoveCursor(int x, int y)
-{
+void MoveCursor (int x, int y) {
     append (&scb, 0x1B);
     append (&scb, 0x59);
     append (&scb, (0x20 + x));
     append (&scb, (0x20 + y));
 }
 
-void ClearScreen()
-{
+void ClearScreen() {
     append (&scb, 0x1B);
     append (&scb, 0x45);
 }
 
-void CursorUp(){
+void CursorUp() {
     append (&scb, 0x1B);
     append (&scb, 0x41);
-
 }
 
-void CursorDown(){
+void CursorDown() {
     append (&scb, 0x1B);
     append (&scb, 0x42);
 }

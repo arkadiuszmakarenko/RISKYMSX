@@ -379,13 +379,6 @@ void IAP_Initialization (void) {
     /* IAP verify-code inspection */
     Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
 
-
-    /* USB Host Initialization */
-    // printf( "USB Host & UDisk Lib Initialization. \r\n" );
-    /* Initialize USBHS host */
-
-    /* Initialize USBFS host */
-
     USBFS_RCC_Init();
     USBFS_Host_Init (ENABLE);
     memset (&RootHubDev[DEF_USB_PORT_FS].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));
@@ -817,37 +810,37 @@ int printFilename (uint32_t index) {
                     for (int j = 0; j != 60; j++) {
                         if (isPrintableCharacter (LongNameBuf[j])) {
                             FileName[FileNameSizeIndex] = LongNameBuf[j];
-                            FileNameSizeIndex++; 
+                            FileNameSizeIndex++;
                         }
                     }
                     uint32_t sizeAdjusted = 0;
-                    if (FileSize >= 1073741824) { // 1 GB = 1073741824 bytes
+                    if (FileSize >= 1073741824) {  // 1 GB = 1073741824 bytes
                         sizeAdjusted = FileSize / 1073741824;
-                        intToString(sizeAdjusted,FileNameSize);
-                        FileNameSize[3] = 0x47; //G
-                        FileNameSize[4] = 0x42; //B
-        
-                    } else if (FileSize >= 1048576) { // 1 MB = 1048576 bytes
+                        intToString (sizeAdjusted, FileNameSize);
+                        FileNameSize[3] = 0x47;        // G
+                        FileNameSize[4] = 0x42;        // B
+
+                    } else if (FileSize >= 1048576) {  // 1 MB = 1048576 bytes
                         sizeAdjusted = FileSize / 1048576;
-                        intToString(sizeAdjusted,FileNameSize);
-                        FileNameSize[3] = 0x4D; //M
-                        FileNameSize[4] = 0x42; //B
-                    } else if (FileSize >= 1024) { // 1 KB = 1024 bytes
+                        intToString (sizeAdjusted, FileNameSize);
+                        FileNameSize[3] = 0x4D;     // M
+                        FileNameSize[4] = 0x42;     // B
+                    } else if (FileSize >= 1024) {  // 1 KB = 1024 bytes
                         sizeAdjusted = FileSize / 1024;
-                        intToString(sizeAdjusted,FileNameSize);
-                        FileNameSize[3] = 0x4B; //K
-                        FileNameSize[4] = 0x42; //B
+                        intToString (sizeAdjusted, FileNameSize);
+                        FileNameSize[3] = 0x4B;  // K
+                        FileNameSize[4] = 0x42;  // B
                     } else {
-                        intToString(FileSize,FileNameSize);
-                        FileNameSize[4] = 0x42; //B
+                        intToString (FileSize, FileNameSize);
+                        FileNameSize[4] = 0x42;  // B
                     }
 
                     for (int x = 0; x < 24; x++) {
-                        append(&scb,FileName[x]);
+                        append (&scb, FileName[x]);
                     }
-                        
+
                     for (int x = 0; x < 5; x++) {
-                       append(&scb,FileNameSize[x]);
+                        append (&scb, FileNameSize[x]);
                     }
                     NewLine();
                     return 1;
@@ -909,6 +902,16 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
         }
         /* Found file, start IAP processing */
         else {
+            if (CHRV3vFileSize > 262144)  // 256K limit check
+            {
+                NewLine();
+                appendString (&scb, "256KB limit exceeded!");
+                Delay_Ms (3000);
+                PrintMainMenu (0);
+                return;
+            }
+
+
             ret = CHRV3FileOpen();
             /* Read File Size */
             totalcount = CHRV3vFileSize;
