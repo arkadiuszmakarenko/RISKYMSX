@@ -75,10 +75,10 @@ extern volatile uint32_t Flash_Operation_Key1; /* IAP Flash operation Key-code V
 
 #define LONG_NAME_BUF_LEN (20 * 26)
 #define UNICODE_ENDIAN 0
-#define ERR_NO_NAME 0X44     // 此短文件名没有长文件名或错误的长文件
-#define ERR_BUF_OVER 0X45    // 长文件缓冲区溢出
-#define ERR_LONG_NAME 0X46   // 错误的长文件名
-#define ERR_NAME_EXIST 0X47  // 此短文件名存在
+#define ERR_NO_NAME 0X44
+#define ERR_BUF_OVER 0X45
+#define ERR_LONG_NAME 0X46
+#define ERR_NAME_EXIST 0X47
 
 #define LongName_Len 124
 #define TRUE 1
@@ -101,6 +101,7 @@ extern void FLASH_ReadWordAdd (uint32_t address, u32 *buff, uint16_t length);
 
 /* upper operation */
 extern void IAP_Initialization (void);
+extern uint8_t IAP_USBH_PreDeal (void);
 extern void MapperCode_Write (CartType type, uint32_t fileSize);
 
 extern int MountDrive (void);

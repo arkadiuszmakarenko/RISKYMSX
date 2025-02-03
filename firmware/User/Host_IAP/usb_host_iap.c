@@ -1,21 +1,8 @@
-/********************************** (C) COPYRIGHT  *******************************
- * File Name          : iap.c
- * Author             : WCH
- * Version            : V1.0.0
- * Date               : 2022/08/20
- * Description        : IAP
- *********************************************************************************
- * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
- * Attention: This software (modified or not) and binary are used for
- * microcontroller manufactured by Nanjing Qinheng Microelectronics.
- *******************************************************************************/
-
 #include "usb_host_iap.h"
 #include "cart.h"
 #include <stdio.h>
 #include "utils.h"
 #include "MSXTerminal.h"
-
 
 /*Cart buffer*/
 extern CircularBuffer scb;
@@ -33,10 +20,8 @@ volatile uint32_t File_Length;
 volatile uint32_t start_address = 0x08008000;
 volatile uint32_t end_address = 0x08048000;
 
-
 struct _ROOT_HUB_DEVICE RootHubDev[DEF_TOTAL_ROOT_HUB];
 struct __HOST_CTL HostCtl[DEF_TOTAL_ROOT_HUB * DEF_ONE_USB_SUP_DEV_TOTAL];
-
 
 /* Flash Operation Key */
 volatile uint32_t Flash_Operation_Key0;
@@ -86,7 +71,7 @@ void FLASH_ReadWordAdd (uint32_t address, u32 *buff, uint16_t length) {
     uint16_t i;
 
     for (i = 0; i < length; i++) {
-        buff[i] = *(__IO uint32_t *)address;  // 读指定地址的一个字的数据
+        buff[i] = *(__IO uint32_t *)address;
         address += 4;
     }
 }
@@ -140,7 +125,6 @@ uint8_t IAP_Flash_Read (uint32_t address, uint8_t *buff, uint32_t length) {
  *          See notes for other errors
  */
 uint8_t mFLASH_ProgramPage_Fast (uint32_t addr, uint32_t *buffer) {
-    /* 根据芯片的flash编程流程修改此处代码 */
     FLASH_ProgramPage_Fast (addr, buffer);
     return 0;
 }
@@ -407,13 +391,7 @@ uint8_t USBH_CheckRootHubPortStatus (uint8_t usb_port) {
     uint8_t s = ERR_USB_UNSUPPORT;
 
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         s = USBFSH_CheckRootHubPortStatus (RootHubDev[usb_port].bStatus);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        s = USBHSH_CheckRootHubPortStatus (RootHubDev[usb_port].bStatus);
-#endif
     }
 
     return s;
@@ -434,13 +412,7 @@ uint8_t USBH_CheckRootHubPortStatus (uint8_t usb_port) {
  */
 void USBH_ResetRootHubPort (uint8_t usb_port, uint8_t mode) {
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         USBFSH_ResetRootHubPort (mode);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        USBHSH_ResetRootHubPort (mode);
-#endif
     }
 }
 
@@ -457,13 +429,7 @@ uint8_t USBH_EnableRootHubPort (uint8_t usb_port) {
     uint8_t s = ERR_USB_UNSUPPORT;
 
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         s = USBFSH_EnableRootHubPort (&RootHubDev[usb_port].bSpeed);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        s = USBHSH_EnableRootHubPort (&RootHubDev[usb_port].bSpeed);
-#endif
     }
 
     return s;
@@ -480,13 +446,7 @@ uint8_t USBH_EnableRootHubPort (uint8_t usb_port) {
  */
 void USBH_SetSelfSpeed (uint8_t usb_port) {
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         USBFSH_SetSelfSpeed (RootHubDev[usb_port].bSpeed);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        USBHSH_SetSelfSpeed (RootHubDev[usb_port].bSpeed);
-#endif
     }
 }
 
@@ -503,13 +463,7 @@ uint8_t USBH_GetDeviceDescr (uint8_t usb_port) {
     uint8_t s = ERR_USB_UNSUPPORT;
 
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         s = USBFSH_GetDeviceDescr (&RootHubDev[usb_port].bEp0MaxPks, DevDesc_Buf);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        s = USBHSH_GetDeviceDescr (&RootHubDev[usb_port].bEp0MaxPks, DevDesc_Buf);
-#endif
     }
 
     return s;
@@ -528,15 +482,8 @@ uint8_t USBH_SetUsbAddress (uint8_t usb_port) {
     uint8_t s = ERR_USB_UNSUPPORT;
 
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         RootHubDev[usb_port].bAddress = (uint8_t)(DEF_USB_PORT_FS + USB_DEVICE_ADDR);
         s = USBFSH_SetUsbAddress (RootHubDev[usb_port].bEp0MaxPks, RootHubDev[usb_port].bAddress);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        RootHubDev[usb_port].bAddress = (uint8_t)(DEF_USB_PORT_HS + USB_DEVICE_ADDR);
-        s = USBHSH_SetUsbAddress (RootHubDev[usb_port].bEp0MaxPks, RootHubDev[usb_port].bAddress);
-#endif
     }
 
     return s;
@@ -555,13 +502,7 @@ uint8_t USBH_GetConfigDescr (uint8_t usb_port, uint16_t *pcfg_len) {
     uint8_t s = ERR_USB_UNSUPPORT;
 
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         s = USBFSH_GetConfigDescr (RootHubDev[usb_port].bEp0MaxPks, Com_Buffer, DEF_COM_BUF_LEN, pcfg_len);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        s = USBHSH_GetConfigDescr (RootHubDev[usb_port].bEp0MaxPks, Com_Buffer, DEF_COM_BUF_LEN, pcfg_len);
-#endif
     }
     return s;
 }
@@ -579,13 +520,7 @@ uint8_t USBH_SetUsbConfig (uint8_t usb_port, uint8_t cfg_val) {
     uint8_t s = ERR_USB_UNSUPPORT;
 
     if (usb_port == DEF_USB_PORT_FS) {
-#if DEF_USB_PORT_FS_EN
         s = USBFSH_SetUsbConfig (RootHubDev[usb_port].bEp0MaxPks, cfg_val);
-#endif
-    } else if (usb_port == DEF_USB_PORT_HS) {
-#if DEF_USB_PORT_HS_EN
-        s = USBHSH_SetUsbConfig (RootHubDev[usb_port].bEp0MaxPks, cfg_val);
-#endif
     }
 
     return s;
@@ -660,18 +595,9 @@ ENUM_START:
     Delay_Ms (5);
 
     /* Get the USB device configuration descriptor */
-    // DUG_PRINTF("Get CfgDesc: ");
     s = USBH_GetConfigDescr (usb_port, &len);
     if (s == ERR_SUCCESS) {
         cfg_val = ((PUSB_CFG_DESCR)Com_Buffer)->bConfigurationValue;
-
-        /* Print USB device configuration descriptor  */
-#if DEF_DEBUG_PRINTF
-        for (i = 0; i < len; i++) {
-            //  DUG_PRINTF( "%02x ", Com_Buffer[ i ] );
-        }
-        // DUG_PRINTF("\n");
-#endif
     } else {
         /* Determine whether the maximum number of retries has been reached, and retry if not reached */
         /// DUG_PRINTF( "Err(%02x)\n", s );
@@ -854,6 +780,7 @@ int printFilename (uint32_t index) {
 int listFiles (int FileList[20], uint32_t page) {
     int size = 0;
     volatile uint32_t ret;
+    CHRV3DiskConnect();
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         int index = 0 + (page * 20);
         for (;;) {

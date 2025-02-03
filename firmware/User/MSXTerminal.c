@@ -20,6 +20,7 @@ void Init_MSXTerminal (void) {
     initBuffer (&scb);
     initMiniBuffer (&icb);
     IAP_Initialization();
+    ClearScreen();
     appendString (&scb, "Insert USB.");
     while (MountDrive() == 0) { };
     menu.page_usb = 0;
@@ -31,19 +32,32 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = 0;
     ClearScreen();
+    if (CHRV3DiskConnect() != ERR_SUCCESS) {
+        appendString (&scb, "Insert USB.");
+        while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
+    }
+
+    menu.FileIndexSize = listFiles (FileList, page);
+    if (menu.FileIndexSize == 0) {
+        while (MountDrive() == 0) { };
+        menu.page_usb = 0;
+        PrintMainMenu (0);
+        return;
+    }
+    ClearScreen();
     appendString (&scb, "          RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
     appendString (&scb, pageString);
     NewLine();
-    menu.FileIndexSize = listFiles (FileList, page);
+
 
     for (int i = 0; i < menu.FileIndexSize; i++) {
         printFilename (FileList[i]);
     }
     MoveCursor (23, 0);
-    appendString (&scb, "<UP><DOWN><LEFT><RIGHT><RETURN>");
+    appendString (&scb, " UP,DOWN,LEFT,RIGHT,RETURN,ESC");
 
 
     // Show cursor
@@ -69,9 +83,9 @@ void PrintMapperMenu() {
     NewLine();
     appendString (&scb, " KONAMI without SCC");
     NewLine();
-    appendString (&scb, " KONAMI with SCC - SCC ");
+    appendString (&scb, " KONAMI with SCC (EN)");
     NewLine();
-    appendString (&scb, " KONAMI with SCC - NO SCC");
+    appendString (&scb, " KONAMI with SCC (DIS)");
     NewLine();
     appendString (&scb, " ASCII 8KB");
     NewLine();
@@ -82,7 +96,7 @@ void PrintMapperMenu() {
     appendString (&scb, " NEO 16KB");
     NewLine();
     MoveCursor (23, 0);
-    appendString (&scb, " <UP><DOWN><RETURN><ESCAPE> ");
+    appendString (&scb, " UP,DOWN,RETURN,ESC ");
     MoveCursor (4, 0);
 }
 
@@ -90,6 +104,11 @@ void ProcessMSXTerminal (void) {
     uint32_t key;
     if (popmini (&icb, &key) == 0) {
         if (key == 0x1B) {
+
+            ClearScreen();
+            appendString (&scb, "Insert USB.");
+            while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
+            while (MountDrive() == 0) { };
             menu.page_usb = 0;
             PrintMainMenu (0);
         }
