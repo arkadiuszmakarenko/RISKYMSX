@@ -7,6 +7,7 @@ typedef struct TerminalPageState {
     uint32_t page_usb;
     MenuType pageName;
     uint32_t FileIndex;
+    uint32_t FileIndexSize;
     uint32_t CartTypeIndex;
 } MenuState;
 
@@ -21,91 +22,78 @@ void Init_MSXTerminal (void) {
     IAP_Initialization();
     appendString (&scb, "Insert USB.");
     while (MountDrive() == 0) { };
-    PrintMainMenu (0);
     menu.pageName = MAIN;
     menu.page_usb = 0;
-    menu.FileIndex = 0;
+    PrintMainMenu (0);
+
 }
 
 void PrintMainMenu (int page) {
-    append (&scb, 0x1B);
-    append (&scb, 0x45);
+    menu.FileIndex = 0;
+    menu.FileIndexSize = 0;
+    ClearScreen();
     appendString (&scb, "          RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
     appendString (&scb, pageString);
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
-    uint32_t size = 0;
+    NewLine();
+    menu.FileIndexSize = listFiles (FileList, page);
 
-    size = listFiles (FileList, page);
-
-    for (int i = 0; i < size; i++) {
-        printFilename (FileList[i], 55);
+    for (int i = 0; i < menu.FileIndexSize; i++) {
+        printFilename (FileList[i]);
     }
+    MoveCursor(23,0);
+    appendString (&scb, "<UP><DOWN><LEFT><RIGHT><RETURN>");
+
+
+    //Show cursor
     append (&scb, 0x1B);
     append (&scb, 0x79);
     append (&scb, 0x35);
 
-    // 1Bh + 59h + x + y
-    append (&scb, 0x1B);
-    append (&scb, 0x59);
-    append (&scb, 0x21);
-    append (&scb, 0x20);
+    MoveCursor(1,0);
 }
 
 void PrintMapperMenu() {
-    append (&scb, 0x1B);
-    append (&scb, 0x45);
+    ClearScreen();
     appendString (&scb, "          RISKY MSX ");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
-
+    NewLine();
     appendString (&scb, "File to flash:");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
-    printFilename (FileList[menu.FileIndex], 40);
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
-
+    NewLine();
+    printFilename (FileList[menu.FileIndex]);
+    NewLine();
     appendString (&scb, " Standard 32KB ROM");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " Standard 48KB or 64KB ROM");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " KONAMI without SCC");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " KONAMI with SCC - SCC ");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " KONAMI with SCC - NO SCC");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " ASCII 8KB");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " ASCII 16KB");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " NEO 8KB");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
+    NewLine();
     appendString (&scb, " NEO 16KB");
-    append (&scb, 0x0D);
-    append (&scb, 0x0A);
-
-    append (&scb, 0x1B);
-    append (&scb, 0x59);
-    append (&scb, 0x24);
-    append (&scb, 0x20);
+    NewLine();
+    MoveCursor(23,0);
+    appendString (&scb, " <UP><DOWN><RETURN><ESCAPE> ");
+    MoveCursor(4,0);
 }
 
 void ProcessMSXTerminal (void) {
     uint32_t key;
     if (popmini (&icb, &key) == 0) {
+            if (key == 0x1B)
+            {
+                PrintMainMenu(0);
+                return;
+            }
 
         switch (menu.pageName) {
         case MAIN:
@@ -125,21 +113,20 @@ void ProcessMSXTerminal (void) {
             if (key == 0x1E) {
                 if (menu.FileIndex != 0) {
                     menu.FileIndex--;
-                    append (&scb, 0x1B);
-                    append (&scb, 0x41);
+                    CursorUp();
                 }
             }
 
             if (key == 0x1F) {
-                if (menu.FileIndex != 19) {
+                if (menu.FileIndex != (menu.FileIndexSize - 1) ) {
                     menu.FileIndex++;
-                    append (&scb, 0x1B);
-                    append (&scb, 0x42);
+                    CursorDown();
                 }
             }
 
             if (key == 0x0D) {
                 menu.pageName = MAPPER;
+                menu.CartTypeIndex = 0;
                 PrintMapperMenu();
             }
 
@@ -150,27 +137,92 @@ void ProcessMSXTerminal (void) {
             if (key == 0x1E) {
                 if (menu.CartTypeIndex != 0) {
                     menu.CartTypeIndex--;
-                    append (&scb, 0x1B);
-                    append (&scb, 0x41);
+                    CursorUp();
                 }
             }
 
             if (key == 0x1F) {
                 if (menu.CartTypeIndex != 8) {
                     menu.CartTypeIndex++;
-                    append (&scb, 0x1B);
-                    append (&scb, 0x42);
+                    CursorDown();
                 }
             }
 
             if (key == 0x0D) {
+                ClearScreen();
+                appendString (&scb, "Programming file:");
+                NewLine();
+                printFilename (FileList[menu.FileIndex]);
+                NewLine();
+                appendString (&scb, "Mapper type:");
+                NewLine();
+                switch(menu.CartTypeIndex)
+                {
+                    case ROM32k:
+                    appendString (&scb, "Standard ROM 32k");
+                    break;
+                    case ROM48k:
+                    appendString (&scb, "Standard ROM 48k");
+                    break;
+                    case KonamiWithoutSCC:
+                    appendString (&scb, "Konami without SCC");
+                    break;
+                    case KonamiWithSCC:
+                    appendString (&scb, "Konami With SCC (EN)");
+                    break;
+                    case KonamiWithSCCNOSCC:
+                    appendString (&scb, "Konami With SCC (DIS)");
+                    break;
+                    case ASCII8k:
+                    appendString (&scb, "ASCII 8k");
+                    break;
+                    case ASCII16k:
+                    appendString (&scb, "ASCII 16k");
+                    break;
+                    case NEO16:
+                    appendString (&scb, "Neo 16k");
+                    break;
+                    case NEO8:
+                    appendString (&scb, "Neo 8k");
+                    break;
+                }
                 ProgramCart (FileList[menu.FileIndex], menu.CartTypeIndex);
             }
-
             break;
 
         default:
             break;
         }
     }
+}
+
+void NewLine(void)
+{
+    append (&scb, 0x0D);
+    append (&scb, 0x0A);
+}
+
+void MoveCursor(int x, int y)
+{
+    append (&scb, 0x1B);
+    append (&scb, 0x59);
+    append (&scb, (0x20 + x));
+    append (&scb, (0x20 + y));
+}
+
+void ClearScreen()
+{
+    append (&scb, 0x1B);
+    append (&scb, 0x45);
+}
+
+void CursorUp(){
+    append (&scb, 0x1B);
+    append (&scb, 0x41);
+
+}
+
+void CursorDown(){
+    append (&scb, 0x1B);
+    append (&scb, 0x42);
 }

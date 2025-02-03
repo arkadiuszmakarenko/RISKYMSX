@@ -104,7 +104,7 @@ extern void IAP_Initialization (void);
 extern void MapperCode_Write (CartType type, uint32_t fileSize);
 
 extern int MountDrive (void);
-extern int printFilename (uint32_t index, int size);
+extern int printFilename (uint32_t index);
 int listFiles (int *array, uint32_t page);
 
 extern void ProgramCart (uint32_t FileIndex, CartType cartType);

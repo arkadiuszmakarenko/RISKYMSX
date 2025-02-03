@@ -14,6 +14,7 @@
 #include "cart.h"
 #include <stdio.h>
 #include "utils.h"
+#include "MSXTerminal.h"
 
 
 /*Cart buffer*/
@@ -385,7 +386,6 @@ void IAP_Initialization (void) {
 
     /* Initialize USBFS host */
 
-    // DUG_PRINTF( "USBFS Host Init\r\n" );
     USBFS_RCC_Init();
     USBFS_Host_Init (ENABLE);
     memset (&RootHubDev[DEF_USB_PORT_FS].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));
@@ -393,7 +393,6 @@ void IAP_Initialization (void) {
 
 
     /* USB Libs Initialization */
-    // printf( "UDisk library Initialization. \r\n" );
     CHRV3LibInit();
 
     /* IAP-related variable initialization  */
@@ -614,9 +613,6 @@ uint8_t USBH_EnumRootDevice (uint8_t usb_port) {
     uint8_t cfg_val;
     uint16_t i;
     uint16_t len;
-
-    //  DUG_PRINTF( "Enum:\r\n" );
-
     enum_cnt = 0;
 ENUM_START:
     /* Delay and wait for the device to stabilize */
@@ -648,20 +644,10 @@ ENUM_START:
     USBH_SetSelfSpeed (usb_port);
 
     /* Get USB device device descriptor */
-    // DUG_PRINTF("Get DevDesc: ");
     s = USBH_GetDeviceDescr (usb_port);
     if (s == ERR_SUCCESS) {
-        /* Print USB device device descriptor */
-        // #if DEF_DEBUG_PRINTF
-        //         for( i = 0; i < 18; i++ )
-        //         {
-        //             DUG_PRINTF( "%02x ", DevDesc_Buf[ i ] );
-        //         }
-        //         DUG_PRINTF("\n");
-        // #endif
     } else {
         /* Determine whether the maximum number of retries has been reached, and retry if not reached */
-        //  DUG_PRINTF( "Err(%02x)\n", s );
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -669,13 +655,10 @@ ENUM_START:
     }
 
     /* Set the USB device address */
-    // DUG_PRINTF("Set DevAddr: ");
     s = USBH_SetUsbAddress (usb_port);
     if (s == ERR_SUCCESS) {
-        //  DUG_PRINTF( "OK\n" );
     } else {
         /* Determine whether the maximum number of retries has been reached, and retry if not reached */
-        // DUG_PRINTF( "Err(%02x)\n", s );
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -796,13 +779,22 @@ int MountDrive() {
     return op_flag;
 }
 
-int printFilename (uint32_t index, int size) {
+int printFilename (uint32_t index) {
     volatile uint32_t ret;
-    // clear buffer
+    char FileName[50];
+    char FileNameSize[5];
+    int FileNameSizeIndex = 0;
+
+    // clear buffers
     for (int x = 0; x < LONG_NAME_BUF_LEN; x++) {
         LongNameBuf[x] = 0x20;
     }
-
+    for (int x = 0; x < 50; x++) {
+        FileName[x] = 0x20;
+    }
+    for (int x = 0; x < 5; x++) {
+        FileNameSize[x] = 0x20;
+    }
 
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         strcpy ((char *)mCmdParam.Open.mPathName, "/*");
@@ -815,18 +807,49 @@ int printFilename (uint32_t index, int size) {
             return 0;
         }
         if (ret == ERR_FOUND_NAME) {
+            uint32_t FileSize = CHRV3vFileSize;
             ret = CHRV3FileOpen();
             if (ret != ERR_OPEN_DIR) {
                 ret = CHRV3GetLongName();
                 if (ret == ERR_SUCCESS) {
                     append (&scb, 0x20);
-                    for (int j = 0; j != size; j++) {
+                    FileNameSizeIndex = 0;
+                    for (int j = 0; j != 60; j++) {
                         if (isPrintableCharacter (LongNameBuf[j])) {
-                            append (&scb, LongNameBuf[j]);
+                            FileName[FileNameSizeIndex] = LongNameBuf[j];
+                            FileNameSizeIndex++; 
                         }
                     }
-                    append (&scb, 0x0D);
-                    append (&scb, 0x0A);
+                    uint32_t sizeAdjusted = 0;
+                    if (FileSize >= 1073741824) { // 1 GB = 1073741824 bytes
+                        sizeAdjusted = FileSize / 1073741824;
+                        intToString(sizeAdjusted,FileNameSize);
+                        FileNameSize[3] = 0x47; //G
+                        FileNameSize[4] = 0x42; //B
+        
+                    } else if (FileSize >= 1048576) { // 1 MB = 1048576 bytes
+                        sizeAdjusted = FileSize / 1048576;
+                        intToString(sizeAdjusted,FileNameSize);
+                        FileNameSize[3] = 0x4D; //M
+                        FileNameSize[4] = 0x42; //B
+                    } else if (FileSize >= 1024) { // 1 KB = 1024 bytes
+                        sizeAdjusted = FileSize / 1024;
+                        intToString(sizeAdjusted,FileNameSize);
+                        FileNameSize[3] = 0x4B; //K
+                        FileNameSize[4] = 0x42; //B
+                    } else {
+                        intToString(FileSize,FileNameSize);
+                        FileNameSize[4] = 0x42; //B
+                    }
+
+                    for (int x = 0; x < 24; x++) {
+                        append(&scb,FileName[x]);
+                    }
+                        
+                    for (int x = 0; x < 5; x++) {
+                       append(&scb,FileNameSize[x]);
+                    }
+                    NewLine();
                     return 1;
                 }
             }
@@ -837,7 +860,6 @@ int printFilename (uint32_t index, int size) {
 
 int listFiles (int FileList[20], uint32_t page) {
     int size = 0;
-
     volatile uint32_t ret;
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         int index = 0 + (page * 20);
@@ -852,7 +874,6 @@ int listFiles (int FileList[20], uint32_t page) {
                 return size;
             }
             if (ret == ERR_FOUND_NAME) {
-
                 ret = CHRV3FileOpen();
                 if (ret != ERR_OPEN_DIR) {
                     if (size == 20)
@@ -868,63 +889,9 @@ int listFiles (int FileList[20], uint32_t page) {
     return 0;
 }
 
-void ListFiles() {
-    volatile uint32_t ret;
-    if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
-        int index = 1;
-        for (index = 1; index < 100; index++) {
-            strcpy ((char *)mCmdParam.Open.mPathName, "/*");
-            ret = strlen ((char *)mCmdParam.Open.mPathName);
-            mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
-            CHRV3vFileSize = index;                // look for first occurance of file with cart.
-            /* open file */
-            ret = CHRV3FileOpen();
-            if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-                return;
-            }
-            if (ret == ERR_FOUND_NAME) {
-
-                ret = CHRV3FileOpen();
-                if (ret != ERR_OPEN_DIR) {
-
-                    uint8_t ret;
-                    uint16_t j;
-
-                    ret = CHRV3GetLongName();
-                    if (ret == ERR_SUCCESS) {
-
-                        char str[5];
-                        intToString (index, str);
-
-                        appendString (&scb, str);
-                        appendString (&scb, "-");
-
-                        //  int position = findLastCharPositionOfSubstring ((const char *)LongNameBuf, 50, "ROM");
-
-                        for (j = 0; j != 40; j++) {
-                            if (isPrintableCharacter (LongNameBuf[j])) {
-                                append (&scb, LongNameBuf[j]);
-                            }
-                        }
-
-                        for (j = 0; j != LONG_NAME_BUF_LEN; j++) {
-                            LongNameBuf[j] = 0x20;
-                        }
-
-
-                        append (&scb, 0x0D);
-                        append (&scb, 0x0A);
-                    }
-                }
-            }
-        }
-    }
-}
-
 void ProgramCart (uint32_t FileIndex, CartType cartType) {
     uint32_t totalcount, t;
     uint16_t i, ret;
-    char message[10];
 
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         /* Make sure the flash operation is correct */
@@ -938,20 +905,17 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
         ret = CHRV3FileOpen();
         /* file or directory not found */
         if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-            appendString (&scb, "FileNotFound!");  // file not found
+            appendString (&scb, "File Not Found! Something went wrong!");  // file not found
         }
         /* Found file, start IAP processing */
         else {
-            appendString (&scb, "FileFound ");
-            appendString (&scb, (const char *)mCmdParam.Open.mPathName);
-
             ret = CHRV3FileOpen();
-            //  appendString (&scb, "FileFound");
             /* Read File Size */
             totalcount = CHRV3vFileSize;
             File_Length = totalcount;
-            intToString (totalcount, message);
-            // appendString (&scb, message);
+            NewLine();
+            appendString (&scb, "Programming!");
+            NewLine();
             /* Make sure the flash operation is correct */
             Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
             IAP_Load_Addr_Offset = 0;
@@ -976,7 +940,6 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
                     IAPLoadBuffer[IAP_WriteIn_Length] = mCmdParam.ByteRead.mByteBuffer[i];
                     IAP_WriteIn_Length++;
 
-
                     /* The whole package part of the IAP user file */
                     if (IAP_WriteIn_Length == DEF_MAX_IAP_BUFFER_LEN) {
                         /* Write Data In Flash */
@@ -987,16 +950,6 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
                         IAP_Load_Addr_Offset += DEF_MAX_IAP_BUFFER_LEN;
                         IAP_WriteIn_Count += IAP_WriteIn_Length;
                         IAP_WriteIn_Length = 0;
-
-                        // handle leds to indicate cart programming
-
-
-                        if (IAP_WriteIn_Count >= ((totalcount * 50) / 100)) {
-                            GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
-                        }
-                        if (IAP_WriteIn_Count >= totalcount) {
-                            GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
-                        }
                     }
                 }
 
@@ -1016,8 +969,12 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
             if (CHRV3vFileSize == IAP_WriteIn_Count) {
                 MapperCode_Write (cartType, File_Length);
                 FLASH_Lock_Fast();
-                GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
-                appendString (&scb, "100% ");
+                NewLine();
+                appendString (&scb, "Done. Rebooting...");
+                NewLine();
+                append (&scb, 0x03);
+                Delay_Ms (100);
+                PFIC->SCTLR |= (1 << 31);
             } else {
                 /* IAP length checksum error */
                 FLASH_Lock_Fast();

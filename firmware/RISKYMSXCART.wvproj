@@ -205,7 +205,7 @@
 					"other_warning_flags": ""
 				},
 				"debugging": {
-					"debug_level": "max",
+					"debug_level": "none",
 					"debug_format": "default",
 					"generate_prof_information": false,
 					"generate_gprof_information": false,
@@ -723,7 +723,7 @@
 		"address": "0x08000000",
 		"target_path": "/home/makaron/Repo/RISKYMSX/firmware/obj/RISKYMSXCART.hex",
 		"clkSpeed": "High",
-		"debug_interface_mode": "",
+		"debug_interface_mode": "1-wire serial",
 		"erase": true,
 		"program": true,
 		"verify": true,

@@ -26,5 +26,4 @@ int isFull (CircularBuffer *cb);
 int strToInt (const char *str);
 void intToString (int num, char *str);
 int isPrintableCharacter (int value);
-
 #endif  // CIRCULAR_BUFFER_H

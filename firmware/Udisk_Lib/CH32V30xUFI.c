@@ -510,7 +510,6 @@ uint8_t CHRV3LibInit( void )  /* 初始化CHRV3程序库,操作成功返回0 */
     {
         return( 0xFF );  /* 获取当前子程序库的版本号,版本太低则返回错误 */
     }
-    printf( "lib vision:%02x\r\n",s );
 #if     DISK_BASE_BUF_LEN > 0
     pDISK_BASE_BUF = & DISK_BASE_BUF[0]; /* 指向外部RAM的磁盘数据缓冲区 */
     pDISK_FAT_BUF = & DISK_BASE_BUF[0];  /* 指向外部RAM的磁盘FAT数据缓冲区,可以与pDISK_BASE_BUF合用以节约RAM */
