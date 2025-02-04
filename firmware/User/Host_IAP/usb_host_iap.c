@@ -809,7 +809,7 @@ int listFiles (int FileList[20], uint32_t page) {
     return 0;
 }
 
-void ProgramCart (uint32_t FileIndex, CartType cartType) {
+void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *searchCriteria) {
     uint32_t totalcount, t;
     uint16_t i, ret;
 
@@ -817,15 +817,17 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
         /* Make sure the flash operation is correct */
         Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
 
-        strcpy ((char *)mCmdParam.Open.mPathName, "/*");
+        strcpy ((char *)mCmdParam.Open.mPathName, searchCriteria);  //"/*"
         ret = strlen ((char *)mCmdParam.Open.mPathName);
-        mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
-        CHRV3vFileSize = FileIndex;            // look for first occurance of file with cart.
+        if (isSearch == 1) {
+            mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
+            CHRV3vFileSize = FileIndex;            // look for first occurance of file with cart.
+        }
         /* open file */
         ret = CHRV3FileOpen();
         /* file or directory not found */
         if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-            appendString (&scb, "File Not Found! Something went wrong!");  // file not found
+            // appendString (&scb, "File Not Found! Something went wrong!");  // file not found
         }
         /* Found file, start IAP processing */
         else {
@@ -833,7 +835,7 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
             {
                 NewLine();
                 appendString (&scb, "256KB limit exceeded!");
-                Delay_Ms (3000);
+                Delay_Ms (2000);
                 PrintMainMenu (0);
                 return;
             }
@@ -899,9 +901,11 @@ void ProgramCart (uint32_t FileIndex, CartType cartType) {
             if (CHRV3vFileSize == IAP_WriteIn_Count) {
                 MapperCode_Write (cartType, File_Length);
                 FLASH_Lock_Fast();
+                Delay_Ms (100);
                 NewLine();
                 appendString (&scb, "Done. Rebooting...");
                 NewLine();
+                append (&scb, 0x03);
                 append (&scb, 0x03);
                 Delay_Ms (100);
                 PFIC->SCTLR |= (1 << 31);

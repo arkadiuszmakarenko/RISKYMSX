@@ -22,7 +22,18 @@ void Init_MSXTerminal (void) {
     IAP_Initialization();
     ClearScreen();
     appendString (&scb, "Insert USB.");
+    ClearScreen();
     while (MountDrive() == 0) { };
+
+    // auto program
+    ProgramCart (0, 0, 0, "/CART.R32");
+    ProgramCart (0, 1, 0, "/CART.R48");
+    ProgramCart (0, 2, 0, "/CART.KO4");
+    ProgramCart (0, 3, 0, "/CART.KO5");
+    ProgramCart (0, 4, 0, "/CART.A8K");
+    ProgramCart (0, 5, 0, "/CART.A16");
+    ProgramCart (0, 6, 0, "/CART.N16");
+    ProgramCart (0, 7, 0, "/CART.N8K");
     menu.page_usb = 0;
     PrintMainMenu (0);
 }
@@ -202,7 +213,7 @@ void ProcessMSXTerminal (void) {
                     appendString (&scb, "Neo 8k");
                     break;
                 }
-                ProgramCart (FileList[menu.FileIndex], menu.CartTypeIndex);
+                ProgramCart (FileList[menu.FileIndex], menu.CartTypeIndex, 1, "/*");
             }
             break;
 

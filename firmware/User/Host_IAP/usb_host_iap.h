@@ -108,7 +108,7 @@ extern int MountDrive (void);
 extern int printFilename (uint32_t index);
 int listFiles (int *array, uint32_t page);
 
-extern void ProgramCart (uint32_t FileIndex, CartType cartType);
+extern void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *searchCriteria);
 
 extern int8_t CHRV3GetLongName (void);
 extern uint8_t CheckNameSum (uint8_t *p);
