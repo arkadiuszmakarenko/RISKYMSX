@@ -1,5 +1,16 @@
 # RISKYMSX
 
+## Acknowledgments
+
+The following people contributed to this project and supported me at every stage of the work:
+* Terrible Fire
+* cnlohr 
+* NYYRIKKI
+* Aoineko
+* BG Ollie
+Thank you very much for your support.
+
+
 ![Rev1](https://github.com/user-attachments/assets/d9c3ec10-cc1b-43a5-8a99-4679dabca454)
 
 
