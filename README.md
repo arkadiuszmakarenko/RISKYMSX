@@ -21,6 +21,8 @@ This is a universal cartridge for MSX Comupter. It can hold up to 256KB ROMs, an
  * KONAMI with SSC
  * ASCII 8K
  * ASCII 16K
+ * Neo 8k
+ * Neo 16k
 
 ## Building cartridge
 
