@@ -1,5 +1,17 @@
 # RISKYMSX
 
+## Acknowledgments
+
+The following people contributed to this project and supported me at every stage of the work:
+* Terrible Fire
+* cnlohr 
+* NYYRIKKI
+* Aoineko
+* BG Ollie
+  
+Thank you very much for your support.
+
+
 ![Rev1](https://github.com/user-attachments/assets/d9c3ec10-cc1b-43a5-8a99-4679dabca454)
 
 
@@ -9,30 +21,52 @@ This is a universal cartridge for MSX Comupter. It can hold up to 256KB ROMs, an
  * KONAMI with SSC
  * ASCII 8K
  * ASCII 16K
+ * Neo 8k
+ * Neo 16k
 
 ## Building cartridge
 
 Programming
 This chip can be programed using USB A to USB A cable, serial cable (under Windows) or WCH LinkE programmer (Windows and Linux).
 
+
+
+### Windows
 You need WCHISPTool from https://wch-ic.com/ website.
 
-USB A
-Connect RISKY MSX to PC using USB A to USB A cable or serial.
-For USB A Cable Dnld Port should change to USB.
-For serial select your serial device COM
-Select Chip Series - CH32V30x
-Chip Model : CH32V303VCT6
-Select Object File1 and pick up firmware .bin.
-Under Chip Config select Chip Memory Allocation RAMX 32KB + ROM 288KB
-Click Download
+#### USB A - USB A Cable or Serial adapter
+ * Close jumper B0.
+ * Connect RISKY MSX to PC using USB A to USB A cable or serial.
+ * For USB A Cable Dnld Port should change to USB.
+ * For serial select your serial device COM
+ * Select Chip Series - CH32V30x
+ * Chip Model : CH32V303VCT6
+ * Select Object File1 and pick up firmware .bin.
+ * Under Chip Config select Chip Memory Allocation RAMX 32KB + ROM 288KB
+ * Click Download
+
+### Linux
+You need WCHISPTool_CMD from https://wch-ic.com/ website.
+Install driver by going to Linux/driver and running
+`sudo make install`
+
+#### USB A - USB A Cable
+ * Copy RISKYMSX.INI file from repository upgrade folder
+ * Close jumper B0.
+ * Connect RISKY MSX to PC using USB A to USB A cable or serial.
+ * Rename firmware file to something simplier eg. RISKYMSX.bin
+ * Check if following file (or very similar) is being created when you plug in cart to PC `/dev/ch37x0`
+ * Adapt and run command 
+   `sudo ./WCHISPTool_CMD -p /dev/ch37x0 -c RISKYMSX.INI -o program -f RISKYMSX.bin -r 1`
+   this command line is case sensitive, so make sure filenames and extentions are in right case.
+ * Enjoy 
 
 General troubleshooting.
 If no LEDS are on during power up, You have issues with power lines or shorts.
 If during power up and button pressed no LEDs are flashing your MPU doesn't start at all.
 If you can download ROM to cart but MSX doesn't load data from cart then you have issues wih soldering of ADDRESS, DATA or BUS lines.
 
-## Flashing Cartridge 
+## Flashing ROMs 
 Press Flash button during MSX power up. Follow instructions on the screen.
 You will be presented with list of files from root directory of the USB drive (currently DIR navigations are not supported). You can list more files by pressing <RIGHT> <LEFT> arrows.
 You select file to flash by hitting <RETURN> then you need to select mapper type used for selected ROM.
