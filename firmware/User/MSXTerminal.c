@@ -22,7 +22,6 @@ void Init_MSXTerminal (void) {
     IAP_Initialization();
     ClearScreen();
     appendString (&scb, "Insert USB.");
-    ClearScreen();
     while (MountDrive() == 0) { };
 
     // auto program
@@ -66,6 +65,7 @@ void PrintMainMenu (int page) {
 
 
     for (int i = 0; i < menu.FileIndexSize; i++) {
+        MoveCursor (i + 1, 1);
         printFilename (FileList[i]);
     }
     MoveCursor (23, 0);
@@ -77,7 +77,7 @@ void PrintMainMenu (int page) {
     append (&scb, 0x79);
     append (&scb, 0x35);
 
-    MoveCursor (1, 0);
+    MoveCursor (1, 1);
 }
 
 void PrintMapperMenu() {
@@ -85,31 +85,33 @@ void PrintMapperMenu() {
     ClearScreen();
     appendString (&scb, "          RISKY MSX ");
     NewLine();
-    appendString (&scb, "File to flash:");
+    appendString (&scb, "  File to flash:");
     NewLine();
+    append (&scb, 0x20);
     printFilename (FileList[menu.FileIndex]);
     NewLine();
-    appendString (&scb, " Standard 32KB ROM");
-    NewLine();
-    appendString (&scb, " Standard 48KB or 64KB ROM");
-    NewLine();
-    appendString (&scb, " KONAMI without SCC");
-    NewLine();
-    appendString (&scb, " KONAMI with SCC (EN)");
-    NewLine();
-    appendString (&scb, " KONAMI with SCC (DIS)");
-    NewLine();
-    appendString (&scb, " ASCII 8KB");
-    NewLine();
-    appendString (&scb, " ASCII 16KB");
-    NewLine();
-    appendString (&scb, " NEO 8KB");
-    NewLine();
-    appendString (&scb, " NEO 16KB");
-    NewLine();
+    MoveCursor (4, 2);
+    appendString (&scb, "Standard 32KB ROM");
+    MoveCursor (5, 2);
+    appendString (&scb, "Standard 48KB or 64KB ROM");
+    MoveCursor (6, 2);
+    appendString (&scb, "KONAMI without SCC");
+    MoveCursor (7, 2);
+    appendString (&scb, "KONAMI with SCC (EN)");
+    MoveCursor (8, 2);
+    appendString (&scb, "KONAMI with SCC (DIS)");
+    MoveCursor (9, 2);
+    appendString (&scb, "ASCII 8KB");
+    MoveCursor (10, 2);
+    appendString (&scb, "ASCII 16KB");
+    MoveCursor (11, 2);
+    appendString (&scb, "NEO 8KB");
+    MoveCursor (12, 2);
+    appendString (&scb, "NEO 16KB");
+
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
-    MoveCursor (4, 0);
+    MoveCursor (4, 1);
 }
 
 void ProcessMSXTerminal (void) {

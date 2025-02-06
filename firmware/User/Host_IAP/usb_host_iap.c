@@ -761,14 +761,14 @@ int printFilename (uint32_t index) {
                         FileNameSize[4] = 0x42;  // B
                     }
 
-                    for (int x = 0; x < 24; x++) {
+                    for (int x = 0; x < 23; x++) {
                         append (&scb, FileName[x]);
                     }
 
                     for (int x = 0; x < 5; x++) {
                         append (&scb, FileNameSize[x]);
                     }
-                    NewLine();
+                    // NewLine();
                     return 1;
                 }
             }
