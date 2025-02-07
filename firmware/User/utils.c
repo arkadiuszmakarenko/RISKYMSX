@@ -122,7 +122,7 @@ int strToInt (const char *str) {
 
 int isPrintableCharacter (int value) {
 
-    if (value >= 0x21 && value <= 0x7E) {
+    if (value >= 0x20 && value <= 0x7E) {
         return 1;
     }
     return 0;

@@ -5,7 +5,7 @@
 			"type": "mrs-debugger",
 			"request": "launch",
 			"name": "RISKYMSXCART",
-			"cwd": "/home/makaron/Repo/RISKYMSXCart/firmware",
+			"cwd": "/home/makaron/Repo/RISKYMSX/firmware",
 			"openOCDCfg": {
 				"useLocalOpenOCD": true,
 				"executable": "/usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/openocd",
@@ -39,8 +39,8 @@
 					"additionalCommands": []
 				},
 				"loadedFiles": {
-					"executableFile": "/home/makaron/Repo/RISKYMSXCart/firmware/obj/RISKYMSXCART.elf",
-					"symbolFile": "/home/makaron/Repo/RISKYMSXCart/firmware/obj/RISKYMSXCART.elf",
+					"executableFile": "/home/makaron/Repo/RISKYMSX/firmware/obj/RISKYMSXCART.elf",
+					"symbolFile": "/home/makaron/Repo/RISKYMSX/firmware/obj/RISKYMSXCART.elf",
 					"executableFileOffset": 0,
 					"symbolFileOffset": 0
 				},

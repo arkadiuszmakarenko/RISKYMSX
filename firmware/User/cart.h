@@ -12,8 +12,8 @@ typedef enum CartType {
     KonamiWithSCCNOSCC,
     ASCII8k,
     ASCII16k,
-    NEO16,
     NEO8,
+    NEO16,
     MSXTERMINAL,
 } CartType;
 
@@ -36,6 +36,7 @@ void RunMSXTerminal (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 typedef struct _CART_CFG {
     uint32_t CartType;
     uint32_t CartSize;
+    char *filename;
 
 } CART_CFG;
 

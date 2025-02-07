@@ -102,11 +102,13 @@ extern void FLASH_ReadWordAdd (uint32_t address, u32 *buff, uint16_t length);
 /* upper operation */
 extern void IAP_Initialization (void);
 extern uint8_t IAP_USBH_PreDeal (void);
-extern void MapperCode_Write (CartType type, uint32_t fileSize);
+extern void MapperCode_Write (CartType type, uint32_t cartSize);
+extern void MapperCode_Update (CartType type);
 
 extern int MountDrive (void);
-extern int printFilename (uint32_t index);
-int listFiles (int *array, uint32_t page);
+extern int isFile (uint32_t index, char folder[8]);
+extern int printFilename (uint32_t index, char folder[8]);
+extern int listFiles (int FileList[20], uint32_t page, char folder[8]);
 
 extern void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *searchCriteria);
 
