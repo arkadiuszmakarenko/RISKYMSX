@@ -128,4 +128,19 @@ int isPrintableCharacter (int value) {
     return 0;
 }
 
+void handle_path (char *str) {
+    char *last_slash = strrchr (str, '/');
+    if (last_slash != NULL) {
+        if (strcmp (last_slash, "/.") == 0) {
+            *last_slash = '\0';  // Remove the /. section by terminating the string at the last '/'
+        } else if (strcmp (last_slash, "/..") == 0) {
+            *last_slash = '\0';  // Temporarily terminate the string at the last '/'
+            char *second_last_slash = strrchr (str, '/');
+            if (second_last_slash != NULL) {
+                *second_last_slash = '\0';  // Remove the previous section by terminating the string at the second-to-last '/'
+            }
+        }
+    }
+}
+
 #pragma GCC pop_options

@@ -89,7 +89,8 @@ extern volatile uint32_t Flash_Operation_Key1; /* IAP Flash operation Key-code V
 /*******************************************************************************/
 /* Function Extrapolation */
 /* Lower operation */
-extern uint8_t FLASH_ReadByte (uint32_t address);
+extern uint8_t
+FLASH_ReadByte (uint32_t address);
 extern uint16_t FLASH_ReadHalfWord (uint32_t address);
 extern uint32_t FLASH_ReadWord (uint32_t address);
 extern uint8_t IAP_Flash_Erase (uint32_t address, uint32_t length);
@@ -102,15 +103,14 @@ extern void FLASH_ReadWordAdd (uint32_t address, u32 *buff, uint16_t length);
 /* upper operation */
 extern void IAP_Initialization (void);
 extern uint8_t IAP_USBH_PreDeal (void);
-extern void MapperCode_Write (CartType type, uint32_t cartSize);
+extern void MapperCode_Write (CartType type, uint32_t cartSize, char *Filename);
 extern void MapperCode_Update (CartType type);
 
 extern int MountDrive (void);
-extern int isFile (uint32_t index, char folder[8]);
-extern int printFilename (uint32_t index, char folder[8]);
-extern int listFiles (int FileList[20], uint32_t page, char folder[8]);
-
-extern void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *searchCriteria);
+extern int isFile (uint8_t Filename[64]);
+extern int printFilename (uint8_t FileArray[64]);
+extern int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page);
+extern void ProgramCart (CartType cartType, char *Filename);
 
 extern int8_t CHRV3GetLongName (void);
 extern uint8_t CheckNameSum (uint8_t *p);

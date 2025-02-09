@@ -4,59 +4,61 @@
 #include "usb_host_iap.h"
 
 typedef struct TerminalPageState {
-    uint32_t page_usb;
     MenuType pageName;
+
     uint32_t FileIndex;
     uint32_t FileIndexSize;
+    uint32_t FileIndexPage;
     uint32_t CartTypeIndex;
+    uint8_t *folder;
+    uint8_t *FileArray[20];
+    uint8_t *Filename;
 } MenuState;
 
 CircularBuffer scb;
 CircularBuffer icb;
 MenuState menu;
-int FileList[20];
-char folder[12];
 
 void Init_MSXTerminal (void) {
     initBuffer (&scb);
     initMiniBuffer (&icb);
+    menu.Filename = (uint8_t *)malloc (64 * sizeof (uint8_t));
+    menu.folder = (uint8_t *)malloc (64 * sizeof (uint8_t));
+
+    for (int i = 0; i < 20; i++) {
+        menu.FileArray[i] = (uint8_t *)malloc (64 * sizeof (uint8_t));
+    }
+
+
     IAP_Initialization();
     ClearScreen();
     appendString (&scb, "Insert USB.");
     while (MountDrive() == 0) { };
 
     // auto program
-    ProgramCart (0, ROM32k, 0, "/CART.R32");
-    ProgramCart (0, ROM48k, 0, "/CART.R48");
-    ProgramCart (0, KonamiWithoutSCC, 0, "/CART.KO4");
-    ProgramCart (0, KonamiWithSCC, 0, "/CART.KO5");
-    ProgramCart (0, KonamiWithSCCNOSCC, 0, "/CART.KD5");
-    ProgramCart (0, ASCII8k, 0, "/CART.A8K");
-    ProgramCart (0, ASCII16k, 0, "/CART.A16");
-    ProgramCart (0, NEO16, 0, "/CART.N16");
-    ProgramCart (0, NEO8, 0, "/CART.N8K");
-    menu.page_usb = 0;
-    strcpy (folder, "/*");
-    PrintMainMenu (0);
+    ProgramCart (ROM32k, "/CART.R32");
+    ProgramCart (ROM48k, "/CART.R48");
+    ProgramCart (KonamiWithoutSCC, "/CART.KO4");
+    ProgramCart (KonamiWithSCC, "/CART.KO5");
+    ProgramCart (KonamiWithSCCNOSCC, "/CART.KD5");
+    ProgramCart (ASCII8k, "/CART.A8K");
+    ProgramCart (ASCII16k, "/CART.A16");
+    ProgramCart (NEO16, "/CART.N16");
+    ProgramCart (NEO8, "/CART.N8K");
+    menu.FileIndexPage = 1;
+    strcpy ((char *)menu.folder, "/*");
+    PrintMainMenu (menu.FileIndexPage);
 }
 
 void PrintMainMenu (int page) {
     menu.pageName = MAIN;
     menu.FileIndex = 0;
-    menu.FileIndexSize = 0;
     ClearScreen();
     if (CHRV3DiskConnect() != ERR_SUCCESS) {
         appendString (&scb, "Insert USB.");
         while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
     }
-
-    menu.FileIndexSize = listFiles (FileList, page, folder);
-    if (menu.FileIndexSize == 0) {
-        while (MountDrive() == 0) { };
-        menu.page_usb = 0;
-        PrintMainMenu (0);
-        return;
-    }
+    menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
     appendString (&scb, "          RISKY MSX ");
     appendString (&scb, "Page:");
@@ -65,11 +67,23 @@ void PrintMainMenu (int page) {
     appendString (&scb, pageString);
     NewLine();
 
-
     for (int i = 0; i < menu.FileIndexSize; i++) {
         MoveCursor (i + 1, 1);
-        printFilename (FileList[i], folder);
+        printFilename (menu.FileArray[i]);
     }
+
+    MoveCursor (22, 0);
+    appendString (&scb, "Folder:");
+
+    uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
+    strcpy ((char *)location, (char *)menu.folder);
+    int length = strlen ((char *)location);
+    if (length > 0) {
+        location[length - 1] = '\0';
+    }
+    appendString (&scb, (char *)location);
+    free (location);
+
     MoveCursor (23, 0);
     appendString (&scb, " ARROWS,RETURN,ESC,1");
 
@@ -90,9 +104,18 @@ void PrintMapperMenu() {
     appendString (&scb, "  File to flash:");
     NewLine();
     append (&scb, 0x20);
-    printFilename (FileList[menu.FileIndex], folder);
+    // todo
+    printFilename (menu.Filename);
     NewLine();
     PrintMapperList();
+
+    MoveCursor (21, 0);
+
+    uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
+    strcpy ((char *)location, (char *)menu.Filename);
+    appendString (&scb, (char *)location);
+    free (location);
+
 
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
@@ -100,6 +123,8 @@ void PrintMapperMenu() {
 }
 
 void ChangeMapperMenu() {
+    char filesize[10] = {0};
+    char file[64] = {0};
     CART_CFG volatile *cfg;
     // Read config from config flash location.
     uint8_t *restrict cfgpnt = (uint8_t *)&__cfg_section_start;
@@ -108,14 +133,26 @@ void ChangeMapperMenu() {
     type = cfg->CartType;
 
     ClearScreen();
-    appendString (&scb, "Filename flashed:");
+    appendString (&scb, " Filename and mapper type:");
     MoveCursor (1, 0);
-    for (int j = 0; j != 60; j++) {
-        append (&scb, *(cfgpnt + 8 + j));
-    }
+    append (&scb, 0x20);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overread"
+    strncpy (file, (char *)(cfgpnt + 8), 64);
+    file[63] = '\0';
+#pragma GCC diagnostic pop
+
+    appendString (&scb, file);
+
+    intToString ((uint16_t)cfg->CartSize, filesize);
+    append (&scb, 0x20);
+    appendString (&scb, filesize);
+    appendString (&scb, "KB");
+
+
     MoveCursor (2, 0);
     PrintMapperType (type);
-    MoveCursor (3, 0);
+    MoveCursor (4, 0);
     PrintMapperList();
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
@@ -131,24 +168,24 @@ void ProcessMSXTerminal (void) {
             appendString (&scb, "Insert USB.");
             while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
             while (MountDrive() == 0) { };
-            menu.page_usb = 0;
-            strcpy (folder, "/*");
-            PrintMainMenu (0);
+            menu.FileIndexPage = 1;
+            strcpy ((char *)menu.folder, "/*");
+            PrintMainMenu (menu.FileIndexPage);
         }
 
         switch (menu.pageName) {
         case MAIN:
             if (key == 0x1C) {
-                menu.page_usb++;
-                menu.FileIndex = 0;
-                PrintMainMenu (menu.page_usb);
+                if (menu.FileIndexSize < 20)
+                    return;
+                menu.FileIndexPage++;
+                PrintMainMenu (menu.FileIndexPage);
             }
             if (key == 0x1D) {
-                if (menu.page_usb == 0)
+                if (menu.FileIndexPage == 1)
                     return;
-                menu.page_usb--;
-                menu.FileIndex = 0;
-                PrintMainMenu (menu.page_usb);
+                menu.FileIndexPage--;
+                PrintMainMenu (menu.FileIndexPage);
             }
 
             if (key == 0x1E) {
@@ -159,30 +196,35 @@ void ProcessMSXTerminal (void) {
             }
 
             if (key == 0x1F) {
-                if (menu.FileIndex != (menu.FileIndexSize - 1)) {
-                    menu.FileIndex++;
-                    CursorDown();
-                }
+                if (menu.FileIndex == (menu.FileIndexSize - 1))
+                    return;
+                menu.FileIndex++;
+                CursorDown();
             }
 
             if (key == 0x0D) {
                 menu.CartTypeIndex = 0;
-                if (isFile (menu.FileIndex, folder) != 0) {
+                strcpy ((char *)menu.Filename, (char *)menu.FileArray[menu.FileIndex]);
+                ClearScreen();
+
+                if (isFile (menu.Filename)) {
+                    PrintMapperMenu();
+                } else {
                     ClearScreen();
-                    appendString (&scb, " NO FOLDER SUPPORT!");
-                    Delay_Ms (1000);
-                    menu.page_usb = 0;
-                    strcpy (folder, "/*");
-                    PrintMainMenu (0);
+                    handle_path ((char *)menu.Filename);
+                    strcat ((char *)menu.Filename, "/*");
+                    strcpy ((char *)menu.folder, (char *)menu.Filename);
+                    // appendString (&scb, (char *)menu.folder);
+                    // menu.FileIndexPage = 1;
+                    PrintMainMenu (menu.FileIndexPage);
                     return;
                 }
-                PrintMapperMenu();
             }
 
             if (key == 0x31) {
                 menu.CartTypeIndex = 0;
                 menu.FileIndex = 0;
-                menu.page_usb = 0;
+                menu.FileIndexPage = 0;
                 menu.pageName = CHANGEMAPPER;
                 ChangeMapperMenu();
             }
@@ -209,14 +251,16 @@ void ProcessMSXTerminal (void) {
                 ClearScreen();
                 appendString (&scb, " Programming file:");
                 NewLine();
-
-                printFilename (FileList[menu.FileIndex], folder);
+                printFilename (menu.Filename);
                 NewLine();
                 NewLine();
                 appendString (&scb, " Mapper type:");
                 NewLine();
                 PrintMapperType (menu.CartTypeIndex);
-                ProgramCart (FileList[menu.FileIndex], menu.CartTypeIndex, 1, "/*");
+                ProgramCart (menu.CartTypeIndex, (char *)menu.Filename);
+                NewLine();
+
+                appendString (&scb, "Programming FAILED!");
             }
             break;
 
@@ -238,6 +282,7 @@ void ProcessMSXTerminal (void) {
             if (key == 0x0D) {
                 ClearScreen();
                 MapperCode_Update (menu.CartTypeIndex);
+                appendString (&scb, "Rebooting ...");
                 Reset();
             }
 

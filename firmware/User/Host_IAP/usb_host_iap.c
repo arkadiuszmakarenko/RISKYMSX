@@ -338,6 +338,10 @@ void mStopIfError (uint8_t iError) {
         /* operation success, return */
         return;
     }
+    appendString (&scb, "ERROR:");
+    char error[5];
+    intToString (iError, error);
+    appendString (&scb, error);
     /* Display the errors */
     // DUG_PRINTF( "Error:%02x\r\n", iError );
     /* After encountering an error, you should analyze the error code and CHRV3DiskStatus status, for example,
@@ -663,19 +667,17 @@ uint8_t IAP_USBH_PreDeal (void) {
     return DEF_IAP_DEFAULT;
 }
 
-void MapperCode_Write (CartType type, uint32_t cartSize) {
+void MapperCode_Write (CartType type, uint32_t cartSize, char *Filename) {
     uint32_t cfg_address = 0x08007F00;
     uint16_t volatile cartSizekB = ((cartSize + 512) / 1024);
-
     uint32_t cfg[64];
-    cfg[0] = type;        // 4
-    cfg[1] = cartSizekB;  // 4
-    uint8_t *cfgpnt = (uint8_t *)&cfg;
-    for (int j = 0; j != 60; j++) {
-        *(cfgpnt + 8 + j) = LongNameBuf[j];
-    }
 
+    cfg[0] = type;
+    cfg[1] = cartSizekB;
 
+    strcpy ((char *)&cfg[2], Filename);
+
+    // Copy data to flash.
     FLASH_Unlock_Fast();
     FLASH_ErasePage_Fast (cfg_address);
     FLASH_ProgramPage_Fast (cfg_address, cfg);
@@ -724,37 +726,56 @@ int MountDrive() {
     return op_flag;
 }
 
-int isFile (uint32_t index, char folder[8]) {
-    volatile uint32_t ret;
-    if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
-        strcpy ((char *)mCmdParam.Open.mPathName, "/*");
-        ret = strlen ((char *)mCmdParam.Open.mPathName);
-        mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
-        CHRV3vFileSize = index;                // look for first occurance of file with cart.
-        /* open file */
-        ret = CHRV3FileOpen();
-        if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-            return 0;
-        }
-        ret = CHRV3FileOpen();
-        if (ret == ERR_OPEN_DIR) {
-            return 1;
-        }
+int isFile (uint8_t Filename[64]) {
+    char *str = NULL;
+
+    str = strstr ((char *)Filename, "/..");
+    if (str != NULL) {
+        return 0;
     }
+
+    str = strstr ((char *)Filename, "/.");
+    if (str != NULL) {
+        return 0;
+    }
+
+    str = strchr ((char *)Filename, '.');
+    if (str != NULL) {
+        return 1;
+    }
+
     return 0;
 }
 
-int printFilename (uint32_t index, char folder[8]) {
-    volatile uint32_t ret;
-    char FileName[50];
-    char FileNameSize[5];
-    int FileNameSizeIndex = 0;
+int printFilename (uint8_t FileArray[64]) {
+    char *str = NULL;
+    uint8_t FileName[64];
+    uint8_t FileNameSize[5];
+    uint8_t isFolder = 0;
+
+    str = strstr ((char *)FileArray, "/..");
+    if (str != NULL) {
+        appendString (&scb, " ..");
+        return 0;
+    }
+
+    str = strstr ((char *)FileArray, "/.");
+    if (str != NULL) {
+        appendString (&scb, " .");
+        return 0;
+    }
+
+
+    for (int j = 0; j != LONG_NAME_BUF_LEN; j++) {
+        LongNameBuf[j] = 0x00;
+    }
+
+    char *ptr = strchr ((char *)FileArray, '.');
+    if (ptr == NULL) {
+        isFolder = 1;
+    }
 
     // clear buffers
-    for (int x = 0; x < LONG_NAME_BUF_LEN; x++) {
-        LongNameBuf[x] = 0x00;
-        ;
-    }
     for (int x = 0; x < 50; x++) {
         FileName[x] = 0x20;
     }
@@ -763,119 +784,129 @@ int printFilename (uint32_t index, char folder[8]) {
     }
 
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
-        strcpy ((char *)mCmdParam.Open.mPathName, folder);
-        ret = strlen ((char *)mCmdParam.Open.mPathName);
-        mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
-        CHRV3vFileSize = index;                // look for first occurance of file with cart.
+        CHRV3DirtyBuffer();
+        strcpy ((char *)mCmdParam.Open.mPathName, (char *)FileArray);
         /* open file */
-        ret = CHRV3FileOpen();
-        if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-            return 0;
-        }
+        CHRV3FileOpen();
 
         uint32_t FileSize = CHRV3vFileSize;
-        ret = CHRV3GetLongName();
-        append (&scb, 0x20);
-        FileNameSizeIndex = 0;
-        for (int j = 0; j != 65; j++) {
-            if (isPrintableCharacter (LongNameBuf[j])) {
-                FileName[FileNameSizeIndex] = LongNameBuf[j];
-                FileNameSizeIndex++;
+
+        CHRV3GetLongName();
+
+        int PositionIndex = 0;
+        for (int j = 0; j != LONG_NAME_BUF_LEN; j = j + 2) {
+            if ((LongNameBuf[j] == 0x00) && (LongNameBuf[j + 1] == 0x00)) {
+                break;
             }
+            if (LongNameBuf[j] != 0x00)
+                FileName[(PositionIndex++)] = LongNameBuf[j];
         }
+
+        if (PositionIndex == 0) {
+            int length = strlen ((char *)mCmdParam.Open.mPathName);
+            strcpy ((char *)FileName, (char *)mCmdParam.Open.mPathName + 1);
+            FileName[length - 1] = 0x20;
+        }
+
         uint32_t sizeAdjusted = 0;
         if (FileSize >= 1073741824) {  // 1 GB = 1073741824 bytes
             sizeAdjusted = FileSize / 1073741824;
-            intToString (sizeAdjusted, FileNameSize);
+            intToString (sizeAdjusted, (char *)FileNameSize);
             FileNameSize[3] = 0x47;        // G
             FileNameSize[4] = 0x42;        // B
 
         } else if (FileSize >= 1048576) {  // 1 MB = 1048576 bytes
             sizeAdjusted = FileSize / 1048576;
-            intToString (sizeAdjusted, FileNameSize);
+            intToString (sizeAdjusted, (char *)FileNameSize);
             FileNameSize[3] = 0x4D;     // M
             FileNameSize[4] = 0x42;     // B
         } else if (FileSize >= 1024) {  // 1 KB = 1024 bytes
             sizeAdjusted = FileSize / 1024;
-            intToString (sizeAdjusted, FileNameSize);
+            intToString (sizeAdjusted, (char *)FileNameSize);
             FileNameSize[3] = 0x4B;  // K
             FileNameSize[4] = 0x42;  // B
         } else {
-            intToString (FileSize, FileNameSize);
+            intToString (FileSize, (char *)FileNameSize);
             FileNameSize[4] = 0x42;  // B
         }
 
-        for (int x = 0; x < 23; x++) {
+        append (&scb, 0x20);
+        for (int x = 0; x < 25; x++) {
             append (&scb, FileName[x]);
+        }
+        if (isFolder) {
+            strncpy ((char *)FileNameSize, "<DIR>", 5);
         }
 
         for (int x = 0; x < 5; x++) {
             append (&scb, FileNameSize[x]);
         }
+        CHRV3FileClose();
         return 1;
     }
     return 0;
 }
 
-int listFiles (int FileList[20], uint32_t page, char folder[8]) {
-    int size = 0;
+int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page) {
     volatile uint32_t ret;
-    CHRV3DiskConnect();
+    int firstItem = (page - 1) * 20;
+    int endItem = page * 20;
+    int size = 0;
+    for (int i = 0; i < 20; i++) {
+        for (int j = 0; j < 64; j++) {
+            FileArray[i][j] = 0x00;
+        }
+    }
+
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
-        int index = 0 + (page * 20);
-        for (;;) {
-            strcpy ((char *)mCmdParam.Open.mPathName, folder);
+
+        for (int index = firstItem; index < endItem; index++) {
+            CHRV3DirtyBuffer();
+            strcpy ((char *)mCmdParam.Open.mPathName, (char *)folder);
             ret = strlen ((char *)mCmdParam.Open.mPathName);
             mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
             CHRV3vFileSize = index;                // look for first occurance of file with cart.
             /* open file */
             ret = CHRV3FileOpen();
             if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-                return size;
+                CHRV3FileClose();
+                continue;
             }
-            if (ret == ERR_FOUND_NAME) {
 
-                ret = CHRV3FileOpen();
-
-                //  if (ret != ERR_OPEN_DIR) {
-                if (size == 20)
-                    return size;
-                FileList[size] = index;
-                size++;
-                // }
-            }
-            index++;
+            strcpy ((char *)FileArray[size], (char *)mCmdParam.Open.mPathName);
+            size++;
+            CHRV3FileClose();
         }
-        return size;
     }
-    return 0;
+    return size;
 }
 
-void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *searchCriteria) {
+void ProgramCart (CartType cartType, char *Filename) {
     uint32_t totalcount, t;
     uint16_t i, ret;
-
+    uint8_t *filenamecart = (uint8_t *)malloc (64 * sizeof (uint8_t));
 
     // clear buffers
     for (int x = 0; x < LONG_NAME_BUF_LEN; x++) {
         LongNameBuf[x] = 0x20;
     }
+    CHRV3DirtyBuffer();
 
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         /* Make sure the flash operation is correct */
         Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
 
-        strcpy ((char *)mCmdParam.Open.mPathName, searchCriteria);  //"/*"
-        ret = strlen ((char *)mCmdParam.Open.mPathName);
-        if (isSearch == 1) {
-            mCmdParam.Open.mPathName[ret] = 0xFF;  // Replace the terminator with the search number according to the length of the string, from 0 to 254,if it is 0xFF that is 255, then the search number is in the CHRV3vFileSize variable
-            CHRV3vFileSize = FileIndex;            // look for first occurance of file with cart.
-        }
+        strcpy ((char *)mCmdParam.Open.mPathName, Filename);
+        strcpy ((char *)filenamecart, Filename);
         /* open file */
         ret = CHRV3FileOpen();
+
         /* file or directory not found */
         if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
-            // appendString (&scb, "File Not Found! Something went wrong!");  // file not found
+            appendString (&scb, Filename);
+            NewLine();
+            appendString (&scb, "File Not Found.");
+            NewLine();
         }
         /* Found file, start IAP processing */
         else {
@@ -887,8 +918,6 @@ void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *sea
                 PrintMainMenu (0);
                 return;
             }
-            ret = CHRV3GetLongName();
-            ret = CHRV3FileOpen();
 
             /* Read File Size */
             totalcount = CHRV3vFileSize;
@@ -949,14 +978,16 @@ void ProgramCart (uint32_t FileIndex, CartType cartType, int isSearch, char *sea
             IAP_WriteIn_Count += IAP_WriteIn_Length;
             /* Check actual write length and file length */
             if (CHRV3vFileSize == IAP_WriteIn_Count) {
-                MapperCode_Write (cartType, File_Length);
+                MapperCode_Write (cartType, File_Length, (char *)filenamecart);
+                free (filenamecart);
                 FLASH_Lock_Fast();
-                Delay_Ms (100);
                 NewLine();
                 appendString (&scb, " Done. Rebooting...");
                 Reset();
+
             } else {
                 /* IAP length checksum error */
+                appendString (&scb, " Check sum error, programming failed");
                 FLASH_Lock_Fast();
             }
         }
@@ -998,55 +1029,35 @@ P_NEXT1:
                 if (offset != 0) {
                     offset = offset - 32;
                     if ((DISK_BASE_BUF[offset + 11] == ATTR_LONG_NAME) && (DISK_BASE_BUF[offset + 13] == sum)) {
-                        if ((index + 26) > LONG_NAME_BUF_LEN)
-                            return ERR_BUF_OVER;
+                        // if ((index + 26) > LONG_NAME_BUF_LEN)
+                        //     return ERR_BUF_OVER;
 
                         for (i = 0; i != 5; i++) {
-#if UNICODE_ENDIAN == 1
-                            LongNameBuf[index++] =
-                                DISK_BASE_BUF[offset + i * 2 + 2];
-                            LongNameBuf[index++] =
-                                DISK_BASE_BUF[offset + i * 2 + 1];
-#else
+
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + i * 2 + 1];
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + i * 2 + 2];
-#endif
                         }
 
                         for (i = 0; i != 6; i++) {
-#if UNICODE_ENDIAN == 1
-                            LongNameBuf[index++] =
-                                DISK_BASE_BUF[offset + 14 + i * 2 + 1];
-                            LongNameBuf[index++] =
-                                DISK_BASE_BUF[offset + +14 + i * 2];
-#else
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + +14 + i * 2];
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + 14 + i * 2 + 1];
-#endif
                         }
 
                         for (i = 0; i != 2; i++) {
-#if UNICODE_ENDIAN == 1
-                            LongNameBuf[index++] =
-                                DISK_BASE_BUF[offset + 28 + i * 2 + 1];
-                            LongNameBuf[index++] =
-                                DISK_BASE_BUF[offset + 28 + i * 2];
-#else
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + 28 + i * 2];
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + 28 + i * 2 + 1];
-#endif
                         }
 
                         if (DISK_BASE_BUF[offset] & 0X40) {
                             if (!(((LongNameBuf[index - 1] == 0x00) && (LongNameBuf[index - 2] == 0x00)) || ((LongNameBuf[index - 1] == 0xFF) && (LongNameBuf[index - 2] == 0xFF)))) {
-                                if (index + 52 > LONG_NAME_BUF_LEN)
-                                    return ERR_BUF_OVER;
+                                //  if (index + 52 > LONG_NAME_BUF_LEN)
+                                //      return ERR_BUF_OVER;
                                 LongNameBuf[index] = 0x00;
                                 LongNameBuf[index + 1] = 0x00;
                             }
@@ -1116,8 +1127,8 @@ P_NEXT0:
                 i = CHRV3FileLocate();
                 if (i == ERR_SUCCESS) {
                     if (*NowSector == mCmdParam.Locate.mSectorOffset) {
-                        if (index == 0)
-                            return ERR_NO_NAME;
+                        // if (index == 0)
+                        //   return ERR_NO_NAME;
                         mCmdParam.Locate.mSectorOffset = --index;
                         i = CHRV3FileLocate();
                         if (i == ERR_SUCCESS) {
