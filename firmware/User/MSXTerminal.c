@@ -54,11 +54,6 @@ void Init_MSXTerminal (void) {
 void PrintMainMenu (int page) {
     menu.pageName = MAIN;
     menu.FileIndex = 0;
-    ClearScreen();
-    if (CHRV3DiskConnect() != ERR_SUCCESS) {
-        appendString (&scb, "Insert USB.");
-        while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
-    }
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
     appendString (&scb, "          RISKY MSX ");
@@ -164,7 +159,6 @@ void ProcessMSXTerminal (void) {
     uint32_t key;
     if (popmini (&icb, &key) == 0) {
         if (key == 0x1B) {
-
             ClearScreen();
             appendString (&scb, "Insert USB.");
             while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
