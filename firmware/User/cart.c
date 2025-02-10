@@ -153,29 +153,25 @@ struct MSXState {
 } state;
 
 // global variables#
-CartType volatile type;
-volatile struct MSXState *state_pointer;
-volatile uint8_t *restrict cartpnt;
-volatile CircularBuffer *buf;
-volatile CircularBuffer *sbuf;
-volatile CircularBuffer *ibuf;
+CartType type;
+struct MSXState *state_pointer;
+uint8_t *restrict cartpnt;
+CircularBuffer *buf;
+CircularBuffer *sbuf;
+CircularBuffer *ibuf;
 
 // Config Cart emulation hardware.
 void Init_Cart (void) {
-
     state_pointer = &state;
     cartpnt = (uint8_t *)&__cart_section_start;
     buf = &cb;
     sbuf = &scb;
     ibuf = &icb;
 
-
     FLASH_Enhance_Mode (ENABLE);
-
-    CART_CFG volatile *cfg;
-    // Read config from config flash location.
+    CART_CFG *cfg;
     uint8_t *restrict cfgpnt = (uint8_t *)&__cfg_section_start;
-    cfg = (CART_CFG volatile *)cfgpnt;
+    cfg = (CART_CFG *)cfgpnt;
     type = cfg->CartType;
 
     if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_8) != 0) {
@@ -209,11 +205,10 @@ void Init_Cart (void) {
     case KonamiWithSCC:
         SCC_Init();
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // 4 - 0100
-        // configure initial banks state for Konami with SCC
-        state.bankOffsets[2] = -0x4000;  // 0x5000
-        state.bankOffsets[3] = -0x6000;  // 0x7000
-        state.bankOffsets[4] = -0x8000;  // 0x9000
-        state.bankOffsets[5] = -0xA000;  // 0xB000
+        state.bankOffsets[2] = -0x4000;
+        state.bankOffsets[3] = -0x6000;
+        state.bankOffsets[4] = -0x8000;
+        state.bankOffsets[5] = -0xA000;
 
         NVIC_EnableIRQ (EXTI3_IRQn);
         NVIC_SetPriority (EXTI3_IRQn, 0);
@@ -223,10 +218,10 @@ void Init_Cart (void) {
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
 
-        state.bankOffsets[2] = -0x4000;  // 0x5000
-        state.bankOffsets[3] = -0x6000;  // 0x7000
-        state.bankOffsets[4] = -0x8000;  // 0x9000
-        state.bankOffsets[5] = -0xA000;  // 0xB000
+        state.bankOffsets[2] = -0x4000;
+        state.bankOffsets[3] = -0x6000;
+        state.bankOffsets[4] = -0x8000;
+        state.bankOffsets[5] = -0xA000;
 
         NVIC_EnableIRQ (EXTI3_IRQn);
         NVIC_SetPriority (EXTI3_IRQn, 0);
