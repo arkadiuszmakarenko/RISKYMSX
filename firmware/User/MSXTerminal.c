@@ -33,6 +33,7 @@ void Init_MSXTerminal (void) {
     IAP_Initialization();
     ClearScreen();
     appendString (&scb, "Insert USB.");
+    while (CHRV3DiskConnect() != ERR_USB_DISCON) { };
     while (MountDrive() == 0) { };
 
     // auto program

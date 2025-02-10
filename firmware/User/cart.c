@@ -220,10 +220,9 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunKonamiWithSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCCNOSCC:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // binary 5 0101
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
 
-        // configure initial banks state for Konami with SCC
         state.bankOffsets[2] = -0x4000;  // 0x5000
         state.bankOffsets[3] = -0x6000;  // 0x7000
         state.bankOffsets[4] = -0x8000;  // 0x9000
@@ -287,76 +286,54 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
         break;
 
-
     default:
         break;
     }
 }
 
 void RunCart32k (void) {
-
-    // check if SLT and CS12 lines are enabled
+    EXTI->INTFR = EXTI_Line3;
     if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        // Read address lines and load data from flash for that address, and load data to data port gpio
-        GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR + state.bankOffsets[0]));
-        // set data port as pull push to place data on the bus
         GPIOD->CFGLR = 0x33333333;
-        // wait till end of read cycle
+        GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR + state.bankOffsets[0]));
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        // change data port back to input / floating
         GPIOD->CFGLR = 0x44444444;
     }
-    EXTI->INTFR = EXTI_Line3;
     return;
 }
 
 void RunCart48k (void) {
-
-    // check if SLT and CS12 lines are enabled
+    EXTI->INTFR = EXTI_Line3;
     if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        // Read address lines and load data from flash for that address, and load data to data port gpio
-        GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR));
-        // set data port as pull push to place data on the bus
         GPIOD->CFGLR = 0x33333333;
-        // wait till end of read cycle
+        GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR));
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        // change data port back to input / floating
         GPIOD->CFGLR = 0x44444444;
     }
-    EXTI->INTFR = EXTI_Line3;
     return;
 }
 
 void RunKonamiWithoutSCC (void) {
-    volatile uint16_t address;
-    volatile uint8_t WriteData;
-
-
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
-    address = GPIOE->INDR;
-    WriteData = ((uint16_t)GPIOD->INDR);  // read data from data bus - can I read early to avoid
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
-    // loop - we need to do wait for potential write
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
+    {
+        GPIOD->CFGLR = 0x33333333;
+        GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[address >> 13] + address);
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = 0x44444444;
+
+        return;
+    }
+
+    if (address > 0xB000)
+        return;
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        // Handle read cycle
-        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-        {
-            // Change GPIO Mode from Input (floating) to PushPull
-            GPIOD->CFGLR = 0x33333333;
-            // read data from flash
-            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[address >> 13] + address);
-            // wait till end of slot enable signal
-            while ((GPIOB->INDR & 0x0008) == 0) { };
-            // change back GPIO to floating (input mode)
-            GPIOD->CFGLR = 0x44444444;
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
 
-            return;
-        }
-
-        // Handle write
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0) && ((uint16_t)GPIOB->INDR & 0x0200))  // check for writes (WE and not M1)
-        {
             switch (address) {
             case 0x6000: state_pointer->bankOffsets[3] = (WriteData << 13) - 0x6000; break;
             case 0x8000: state_pointer->bankOffsets[4] = (WriteData << 13) - 0x8000; break;
@@ -369,36 +346,25 @@ void RunKonamiWithoutSCC (void) {
 }
 
 void RunKonamiWithSCC (void) {
-    volatile uint16_t address;
-    volatile uint8_t WriteData;
 
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
-    // read address
-    address = (uint16_t)GPIOE->INDR;
-    // read data from the data bus very early to give as much time in write cycle as possible
-    WriteData = ((uint16_t)GPIOD->INDR);
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
-    // loop - we need to do wait for potential write
-
-    // Handle read cycle
-    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-    {
-        // Change GPIO Mode from Input (floating) to PushPull
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
-        // Decode addresses and Load data from flash memory
         GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
-        // wait till cs12 is enabled
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
         return;
     }
+
+    if (address > 0xB000)
+        return;
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        // Handle Write cycle
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
-        {
-            if (address > 0xB000)
-                return;
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
+
             state_pointer->bankOffsets[address >> 13] = (WriteData << 13) - (address - 0x1000);
             uint8_t next;
             if (buf->head + 1 >= BUFFER_SIZE) {
@@ -412,39 +378,29 @@ void RunKonamiWithSCC (void) {
             return;
         }
     }
-
     return;
 }
 
 void RunKonamiWithSCCNOSCC (void) {
-    volatile uint16_t address;
-    volatile uint8_t WriteData;
-
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
-    // read address
-    address = (uint16_t)GPIOE->INDR;
-    // read data from the data bus very early to give as much time in write cycle as possible
-    WriteData = ((uint16_t)GPIOD->INDR);
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
-    // Handle read cycle
-    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-    {
-        // Change GPIO Mode from Input (floating) to PushPull
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
-        // Decode addresses and Load data from flash memory
         GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
-        // wait till cs12 is enabled
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
         return;
     }
+
+    if (address > 0xB000)
+        return;
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
+
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        // Handle Write cycle
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
-        {
-            if (address > 0xB000)
-                return;
+
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
             state_pointer->bankOffsets[address >> 13] = (WriteData << 13) - (address - 0x1000);
             return;
         }
@@ -453,44 +409,28 @@ void RunKonamiWithSCCNOSCC (void) {
 }
 
 void Run8kASCII (void) {
-    volatile uint32_t address;
-    volatile uint8_t WriteData;
 
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
+    uint16_t address = GPIOE->INDR;
 
-    // Read address lines
-    address = GPIOE->INDR;
-    // Read data from the bus
-    WriteData = ((uint8_t)GPIOD->INDR);
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
+        GPIOD->CFGLR = 0x33333333;
+        GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[(((address >> 12) - 4) >> 1)] + address);
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = 0x44444444;
 
-    // loop - we need to do wait for potential write
+        return;
+    }
+
+    if (address > 0xB000)
+        return;
+    uint8_t WriteData = ((uint8_t)GPIOD->INDR);
+
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        // Handle read cycle
-        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-        {
-            // Decode mappings and Load data from flash to GPIO port
-            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[(((address >> 12) - 4) >> 1)] + address);
-            // Change GPIO Mode from Input (floating) to PushPull
-            GPIOD->CFGLR = 0x33333333;
-            // wait till cs12 is enabled - end of cycle
-            while ((GPIOB->INDR & 0x0008) == 0) { };
-            // Change GPIO Mode back to Input Mode - floating
-            GPIOD->CFGLR = 0x44444444;
-            // Escape while loop early
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
+            int slot = (((address >> 11) & 0x3));
+            state_pointer->bankOffsets[slot] = (WriteData << 13) - (0x4000 + (0x2000 * slot));
 
-            return;
-        }
-
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0) && ((uint16_t)GPIOB->INDR & 0x0200)) {
-
-            // state_pointer->bankOffsets[slot] = (WriteData<<13) - (0x4000 + (0x2000 * slot));
-            switch (address) {
-            case 0x6000: state_pointer->bankOffsets[0] = (WriteData << 13) - 0x4000; break;
-            case 0x6800: state_pointer->bankOffsets[1] = (WriteData << 13) - 0x6000; break;
-            case 0x7000: state_pointer->bankOffsets[2] = (WriteData << 13) - 0x8000; break;
-            case 0x7800: state_pointer->bankOffsets[3] = (WriteData << 13) - 0xA000; break;
-            }
             return;
         }
     }
@@ -498,56 +438,53 @@ void Run8kASCII (void) {
 }
 
 void Run16kASCII (void) {
-    volatile uint32_t address;
-    volatile uint8_t WriteData;
     EXTI->INTFR = EXTI_Line3;
 
-    address = (uint16_t)GPIOE->INDR;
-    WriteData = ((uint16_t)GPIOD->INDR);  // read data from data bus
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
-    // loop - we need to do wait for potential write
-    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-        {
-            // ( (address >> 12) & 0x8 ) selects location 0 when address is less than 0x7FFF and 8 when 0x8000 or above. It is to line up with write logic.
-            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[((address >> 12) & 0x8)] + address);
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
+        GPIOD->CFGLR = 0x33333333;
+        GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[((address >> 12) & 0x8)] + address);
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = 0x44444444;
 
-            // Change GPIO Mode from Input (floating) to PushPull
-            GPIOD->CFGLR = 0x33333333;
-            // wait till cs12 is enabled - end of cycle
-            while ((GPIOB->INDR & 0x0008) == 0) { };
-            // Change GPIO Mode back to Input Mode - floating
-            GPIOD->CFGLR = 0x44444444;
-            // clear the IRQ flag and escape while loop early
-
-            return;
-        }
-
-        // Handle Write cycle
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0) && ((uint16_t)GPIOB->INDR & 0x0200))  // check for writes (WE and not M1)
-        {
-            switch (address) {
-            case 0x6000: state_pointer->bankOffsets[0] = (WriteData << 14) - 0x4000; break;
-
-            case 0x7000:
-            case 0x77FF: state_pointer->bankOffsets[8] = (WriteData << 14) - 0x8000; break;
-            }
-            return;
-        }
+        return;
     }
-    return;
+
+    if (address > 0xB000)
+        return;
+
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
+            {
+                switch (address) {
+                case 0x6000:
+                    state_pointer->bankOffsets[0] = (WriteData << 14) - 0x4000;
+                    return;
+                    break;
+
+                case 0x7000:
+                case 0x77FF:
+                    state_pointer->bankOffsets[8] = (WriteData << 14) - 0x8000;
+                    return;
+                    break;
+
+                default:
+                    return;
+                    break;
+                }
+                return;
+            }
+        }
+        return;
+    }
 }
 
 void RunNEO16 (void) {
-    volatile uint16_t address;
-    volatile uint8_t WriteData;
-
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
-    // read address
-    address = (uint16_t)GPIOE->INDR;
-    // read data from the data bus very early to give as much time in write cycle as possible
-    WriteData = ((uint16_t)GPIOD->INDR);
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
     {
@@ -565,40 +502,31 @@ void RunNEO16 (void) {
         GPIOD->CFGLR = 0x44444444;
         return;
     }
-    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
-        {
-            if (address > 0xB000)
-                return;
+    if (address > 0xB000)
+        return;
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
 
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
             uint8_t bank = ((address >> 12) & 0x03) - 1;
             if (bank > 2)
-                return;       // skip
-            if (address & 1)  // Set bank register MSB
+                return;
+            if (address & 1)
                 state_pointer->bankOffsets[bank] = ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
-            else              // Set bank register LSB
+            else
                 state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
 
             return;
         }
     }
-
     return;
 }
 
 void RunNEO8 (void) {
-    volatile uint16_t address;
-    volatile uint8_t WriteData;
-
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
-    // read address
-    address = (uint16_t)GPIOE->INDR;
-    // read data from the data bus very early to give as much time in write cycle as possible
-    WriteData = ((uint16_t)GPIOD->INDR);
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
-    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-    {
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
 
         uint8_t bank = address >> 13;
@@ -612,40 +540,33 @@ void RunNEO8 (void) {
         GPIOD->CFGLR = 0x44444444;
         return;
     }
+
+    if (address > 0xB000)
+        return;
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
-        {
-            if (address > 0xB000)
-                return;
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
+
             uint8_t bank = ((address >> 11) & 0x07) - 2;
             if (bank > 5)
-                return;       // skip
-            if (address & 1)  // Set bank register MSB
+                return;
+            if (address & 1)
                 state_pointer->bankOffsets[bank] = ((WriteData & 0x0F) << 8) | (state_pointer->bankOffsets[bank] & 0x00FF);
-            else              // Set bank register LSB
+            else
                 state_pointer->bankOffsets[bank] = (state_pointer->bankOffsets[bank] & 0xFF00) | (WriteData);
             return;
         }
     }
-
     return;
 }
 
 void RunMSXTerminal (void) {
-    volatile uint16_t address;
-    // volatile uint8_t WriteData;
-    // static uint8_t msxvar = 0x20;
-
-    // clear interrupt flag
     EXTI->INTFR = EXTI_Line3;
-    // read address
-    address = (uint16_t)GPIOE->INDR;
+    uint16_t address = (uint16_t)GPIOE->INDR;
 
-
-    if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
-    {
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
-
         if (address == 0x7FFF) {
             if (sbuf->head == sbuf->tail) {
                 GPIOD->OUTDR = 0x00;
@@ -655,33 +576,26 @@ void RunMSXTerminal (void) {
             }
         }
 
-
-        // Read address lines and load data from flash for that address, and load data to data port gpio
         if (address >= 0x4000 && address < 0x4FFF) {
             GPIOD->OUTDR = *(msxterm + (address - 0x4000));
         }
 
-        // wait till end of read cycle
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        // change data port back to input / floating
         GPIOD->CFGLR = 0x44444444;
     }
 
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0))  // check for writes (WE and not M1)
-        {
-            uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
             if (address == 0x7FFD) {
                 uint8_t next = (ibuf->head + 1) & (BUFFER_MINI_SIZE - 1);
                 ibuf->buffer[ibuf->head] = WriteData;
                 ibuf->head = next;
             }
-
             return;
         }
     }
-
-
     return;
 }
 

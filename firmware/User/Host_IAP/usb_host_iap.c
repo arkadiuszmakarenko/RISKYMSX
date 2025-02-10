@@ -782,7 +782,7 @@ int printFilename (uint8_t FileArray[64]) {
     for (int x = 0; x < 5; x++) {
         FileNameSize[x] = 0x20;
     }
-
+    CHRV3DiskConnect();
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
         CHRV3DirtyBuffer();
         strcpy ((char *)mCmdParam.Open.mPathName, (char *)FileArray);
@@ -857,7 +857,7 @@ int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page) {
             FileArray[i][j] = 0x00;
         }
     }
-
+    CHRV3DiskConnect();
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
 
         for (int index = firstItem; index < endItem; index++) {
