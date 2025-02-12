@@ -9,6 +9,7 @@
 extern CartType type;
 
 int main (void) {
+    RCC_AdjustHSICalibrationValue (0x1F);
     NVIC_PriorityGroupConfig (NVIC_PriorityGroup_2);
     SystemCoreClockUpdate();
     Delay_Init();

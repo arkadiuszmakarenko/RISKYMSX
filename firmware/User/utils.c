@@ -15,7 +15,7 @@ void initMiniBuffer (CircularBuffer *cb) {
 }
 
 int isFull (CircularBuffer *cb) {
-    uint8_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
+    uint32_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
     if (next == cb->tail) {
         return 1;
     }
@@ -23,7 +23,7 @@ int isFull (CircularBuffer *cb) {
 }
 
 int append (CircularBuffer *cb, uint32_t item) {
-    uint8_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
+    uint32_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
     while (next == cb->tail) { };
     cb->buffer[cb->head] = item;
     cb->head = next;

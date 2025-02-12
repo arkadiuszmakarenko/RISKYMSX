@@ -11,8 +11,8 @@
 
 typedef struct {
     uint32_t *buffer;
-    volatile uint8_t head;
-    volatile uint8_t tail;
+    volatile uint32_t head;
+    volatile uint32_t tail;
 } CircularBuffer;
 
 void initBuffer (CircularBuffer *cb);

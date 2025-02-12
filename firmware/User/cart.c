@@ -287,10 +287,11 @@ void Init_Cart (void) {
 }
 
 void RunCart32k (void) {
-    EXTI->INTFR = EXTI_Line3;
+
     if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         GPIOD->CFGLR = 0x33333333;
         GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR + state.bankOffsets[0]));
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
     }
@@ -298,10 +299,11 @@ void RunCart32k (void) {
 }
 
 void RunCart48k (void) {
-    EXTI->INTFR = EXTI_Line3;
+
     if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         GPIOD->CFGLR = 0x33333333;
         GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR));
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
     }
@@ -309,21 +311,23 @@ void RunCart48k (void) {
 }
 
 void RunKonamiWithoutSCC (void) {
-    EXTI->INTFR = EXTI_Line3;
+
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
     {
         GPIOD->CFGLR = 0x33333333;
         GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[address >> 13] + address);
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
 
         return;
     }
 
-    if (address > 0xB000)
-        return;
+    EXTI->INTFR = EXTI_Line3;
+    // if (address > 0xB000)
+    //    return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
@@ -342,32 +346,35 @@ void RunKonamiWithoutSCC (void) {
 
 void RunKonamiWithSCC (void) {
 
-    EXTI->INTFR = EXTI_Line3;
     uint16_t address = (uint16_t)GPIOE->INDR;
+    uint32_t slot = address >> 13;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
-        GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
+        GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[slot] + address));
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
+
         return;
     }
 
-    if (address > 0xB000)
+    EXTI->INTFR = EXTI_Line3;
+    if (slot > 5)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+    uint32_t AddressData = (((uint32_t)address << 16) | WriteData);
+    uint8_t next;
+    if (buf->head + 1 >= BUFFER_SIZE) {
+        next = 0;
+    } else {
+        next = buf->head + 1;
+    }
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
-
-            state_pointer->bankOffsets[address >> 13] = (WriteData << 13) - (address - 0x1000);
-            uint8_t next;
-            if (buf->head + 1 >= BUFFER_SIZE) {
-                next = 0;
-            } else {
-                next = buf->head + 1;
-            }
-            buf->buffer[buf->head] = (((uint32_t)address << 16) | WriteData);
+            state_pointer->bankOffsets[slot] = (WriteData << 13) - (address - 0x1000);
+            buf->buffer[buf->head] = AddressData;
             buf->head = next;
 
             return;
@@ -377,17 +384,19 @@ void RunKonamiWithSCC (void) {
 }
 
 void RunKonamiWithSCCNOSCC (void) {
-    EXTI->INTFR = EXTI_Line3;
+
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
         GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
         return;
     }
 
+    EXTI->INTFR = EXTI_Line3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -405,18 +414,19 @@ void RunKonamiWithSCCNOSCC (void) {
 
 void Run8kASCII (void) {
 
-    EXTI->INTFR = EXTI_Line3;
     uint16_t address = GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
         GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[(((address >> 12) - 4) >> 1)] + address);
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
 
         return;
     }
 
+    EXTI->INTFR = EXTI_Line3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint8_t)GPIOD->INDR);
@@ -433,19 +443,20 @@ void Run8kASCII (void) {
 }
 
 void Run16kASCII (void) {
-    EXTI->INTFR = EXTI_Line3;
 
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = 0x33333333;
         GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[((address >> 12) & 0x8)] + address);
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
 
         return;
     }
 
+    EXTI->INTFR = EXTI_Line3;
     if (address > 0xB000)
         return;
 
@@ -478,7 +489,6 @@ void Run16kASCII (void) {
 }
 
 void RunNEO16 (void) {
-    EXTI->INTFR = EXTI_Line3;
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
@@ -492,11 +502,13 @@ void RunNEO16 (void) {
             uint32_t offset = ((state_pointer->bankOffsets[bank]) << 14) + (address & 0x3FFF);
             GPIOD->OUTDR = *(cartpnt + offset);
         }
-
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
         return;
     }
+
+    EXTI->INTFR = EXTI_Line3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -518,7 +530,7 @@ void RunNEO16 (void) {
 }
 
 void RunNEO8 (void) {
-    EXTI->INTFR = EXTI_Line3;
+
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
@@ -531,11 +543,13 @@ void RunNEO8 (void) {
             uint32_t offset = ((state_pointer->bankOffsets[bank]) << 13) + (address & 0x1FFF);
             GPIOD->OUTDR = *(cartpnt + offset);
         }
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
         return;
     }
 
+    EXTI->INTFR = EXTI_Line3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -557,7 +571,7 @@ void RunNEO8 (void) {
 }
 
 void RunMSXTerminal (void) {
-    EXTI->INTFR = EXTI_Line3;
+
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
@@ -574,11 +588,12 @@ void RunMSXTerminal (void) {
         if (address >= 0x4000 && address < 0x4FFF) {
             GPIOD->OUTDR = *(msxterm + (address - 0x4000));
         }
-
+        EXTI->INTFR = EXTI_Line3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = 0x44444444;
     }
 
+    EXTI->INTFR = EXTI_Line3;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
