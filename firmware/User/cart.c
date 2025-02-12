@@ -181,14 +181,14 @@ void Init_Cart (void) {
         type = MSXTERMINAL;
     }
 
-    state.BusOn = 0x33333333;
-    state.BusOff = 0x44444444;
-    state.IRQLine3 = EXTI_Line3;
+    state_pointer->BusOn = 0x33333333;
+    state_pointer->BusOff = 0x44444444;
+    state_pointer->IRQLine3 = EXTI_Line3;
 
 
     switch (type) {
     case ROM32k:
-        state.bankOffsets[0] = -0x4000;
+        state_pointer->bankOffsets[0] = -0x4000;
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 1 - 0001
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunCart32k, EXTI3_IRQn, 0, ENABLE);
@@ -203,20 +203,20 @@ void Init_Cart (void) {
         GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
 
         // configure initial banks state for Konami without SCC
-        state.bankOffsets[2] = -0x4000;
-        state.bankOffsets[3] = -0x8000;
-        state.bankOffsets[4] = 0x0;
-        state.bankOffsets[5] = 0x0;
+        state_pointer->bankOffsets[2] = -0x4000;
+        state_pointer->bankOffsets[3] = -0x8000;
+        state_pointer->bankOffsets[4] = 0x0;
+        state_pointer->bankOffsets[5] = 0x0;
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunKonamiWithoutSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCC:
         SCC_Init();
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // 4 - 0100
-        state.bankOffsets[2] = -0x4000;
-        state.bankOffsets[3] = -0x6000;
-        state.bankOffsets[4] = -0x8000;
-        state.bankOffsets[5] = -0xA000;
+        state_pointer->bankOffsets[2] = -0x4000;
+        state_pointer->bankOffsets[3] = -0x6000;
+        state_pointer->bankOffsets[4] = -0x8000;
+        state_pointer->bankOffsets[5] = -0xA000;
 
         NVIC_EnableIRQ (EXTI3_IRQn);
         NVIC_SetPriority (EXTI3_IRQn, 0);
@@ -226,10 +226,10 @@ void Init_Cart (void) {
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
 
-        state.bankOffsets[2] = -0x4000;
-        state.bankOffsets[3] = -0x6000;
-        state.bankOffsets[4] = -0x8000;
-        state.bankOffsets[5] = -0xA000;
+        state_pointer->bankOffsets[2] = -0x4000;
+        state_pointer->bankOffsets[3] = -0x6000;
+        state_pointer->bankOffsets[4] = -0x8000;
+        state_pointer->bankOffsets[5] = -0xA000;
 
         NVIC_EnableIRQ (EXTI3_IRQn);
         NVIC_SetPriority (EXTI3_IRQn, 0);
@@ -241,10 +241,10 @@ void Init_Cart (void) {
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
 
         // configure initial banks state for ASCII8K
-        state.bankOffsets[0] = -0x4000;  // switch address 6000h  -0x4000;
-        state.bankOffsets[1] = -0x6000;  // switch address 6800h  -0x6000;
-        state.bankOffsets[2] = -0x8000;  // switch address 7000h  -0x8000;
-        state.bankOffsets[3] = -0xA000;  // switch address 7800h  -0xA000;
+        state_pointer->bankOffsets[0] = -0x4000;  // switch address 6000h  -0x4000;
+        state_pointer->bankOffsets[1] = -0x6000;  // switch address 6800h  -0x6000;
+        state_pointer->bankOffsets[2] = -0x8000;  // switch address 7000h  -0x8000;
+        state_pointer->bankOffsets[3] = -0xA000;  // switch address 7800h  -0xA000;
 
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)Run8kASCII, EXTI3_IRQn, 0, ENABLE);
@@ -253,8 +253,8 @@ void Init_Cart (void) {
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  //  7 - 0111
         GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
-        state.bankOffsets[0] = -0x4000;
-        state.bankOffsets[8] = -0x8000;
+        state_pointer->bankOffsets[0] = -0x4000;
+        state_pointer->bankOffsets[8] = -0x8000;
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)Run16kASCII, EXTI3_IRQn, 0, ENABLE);
         break;
@@ -262,9 +262,9 @@ void Init_Cart (void) {
     case NEO8:
         GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);  // 8 - 1000
 
-        state.bankOffsets[0] = 0;
-        state.bankOffsets[1] = 0;
-        state.bankOffsets[2] = 0;
+        state_pointer->bankOffsets[0] = 0;
+        state_pointer->bankOffsets[1] = 0;
+        state_pointer->bankOffsets[2] = 0;
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunNEO8, EXTI3_IRQn, 0, ENABLE);
         break;
@@ -273,9 +273,9 @@ void Init_Cart (void) {
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 9 - 1001
         GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
 
-        state.bankOffsets[0] = 0;
-        state.bankOffsets[1] = 0;
-        state.bankOffsets[2] = 0;
+        state_pointer->bankOffsets[0] = 0;
+        state_pointer->bankOffsets[1] = 0;
+        state_pointer->bankOffsets[2] = 0;
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunNEO16, EXTI3_IRQn, 0, ENABLE);
         break;
@@ -297,11 +297,11 @@ void Init_Cart (void) {
 void RunCart32k (void) {
 
     if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        GPIOD->CFGLR = state.BusOn;
-        GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR + state.bankOffsets[0]));
-        EXTI->INTFR = state.IRQLine3;
+        GPIOD->CFGLR = state_pointer->BusOn;
+        GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR + state_pointer->bankOffsets[0]));
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
     }
     return;
 }
@@ -309,11 +309,11 @@ void RunCart32k (void) {
 void RunCart48k (void) {
 
     if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         GPIOD->OUTDR = *(cartpnt + ((uint16_t)GPIOE->INDR));
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
     }
     return;
 }
@@ -324,16 +324,16 @@ void RunKonamiWithoutSCC (void) {
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
     {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[address >> 13] + address);
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
 
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
@@ -356,16 +356,16 @@ void RunKonamiWithSCC (void) {
     uint32_t slot = address >> 13;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[slot] + address));
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
 
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     if (slot > 5)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -394,15 +394,15 @@ void RunKonamiWithSCCNOSCC (void) {
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         GPIOD->OUTDR = *(cartpnt + (state_pointer->bankOffsets[address >> 13] + address));
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -423,16 +423,16 @@ void Run8kASCII (void) {
     uint16_t address = GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[(((address >> 12) - 4) >> 1)] + address);
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
 
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint8_t)GPIOD->INDR);
@@ -453,16 +453,16 @@ void Run16kASCII (void) {
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[((address >> 12) & 0x8)] + address);
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
 
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     if (address > 0xB000)
         return;
 
@@ -499,7 +499,7 @@ void RunNEO16 (void) {
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0)  // check for reads
     {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
 
         uint8_t bank = address >> 14;
         if (bank > 2) {
@@ -508,13 +508,13 @@ void RunNEO16 (void) {
             uint32_t offset = ((state_pointer->bankOffsets[bank]) << 14) + (address & 0x3FFF);
             GPIOD->OUTDR = *(cartpnt + offset);
         }
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -540,7 +540,7 @@ void RunNEO8 (void) {
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
 
         uint8_t bank = address >> 13;
         if (bank > 5) {
@@ -550,13 +550,13 @@ void RunNEO8 (void) {
             GPIOD->OUTDR = *(cartpnt + offset);
         }
 
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
         return;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     if (address > 0xB000)
         return;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -582,7 +582,7 @@ void RunMSXTerminal (void) {
     uint16_t address = (uint16_t)GPIOE->INDR;
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
-        GPIOD->CFGLR = state.BusOn;
+        GPIOD->CFGLR = state_pointer->BusOn;
         if (address == 0x7FFF) {
             if (sbuf->head == sbuf->tail) {
                 GPIOD->OUTDR = 0x00;
@@ -595,12 +595,12 @@ void RunMSXTerminal (void) {
         if (address >= 0x4000 && address < 0x4FFF) {
             GPIOD->OUTDR = *(msxterm + (address - 0x4000));
         }
-        EXTI->INTFR = state.IRQLine3;
+        EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
-        GPIOD->CFGLR = state.BusOff;
+        GPIOD->CFGLR = state_pointer->BusOff;
     }
 
-    EXTI->INTFR = state.IRQLine3;
+    EXTI->INTFR = state_pointer->IRQLine3;
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
