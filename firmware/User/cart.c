@@ -366,8 +366,9 @@ void RunKonamiWithSCC (void) {
     }
 
     EXTI->INTFR = state_pointer->IRQLine3;
-    if (slot > 5)
+    if (address > 0xB000)
         return;
+
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
     uint32_t AddressData = (((uint32_t)address << 16) | WriteData);
     uint8_t next;
