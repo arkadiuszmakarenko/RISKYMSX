@@ -20,6 +20,7 @@ Thank you very much for your support.
 
 
 This is a universal cartridge for MSX series of computes. It can run up to 256KB ROMs, and emulate follwing mappings:
+ * Standard 16KB ROMs
  * Standard 32KB ROMs
  * Standard 48KB /64KB ROMs
  * KONAMI without SSC
@@ -88,6 +89,7 @@ You need to rename rom file to following name, based on mapper used
 
  | Mapper               | filename         | 
  |   :-----------:      | :--------------: | 
+ | 16KB ROM             | cart.r16         | 
  | 32KB ROM             | cart.r32         | 
  | KONAMI without SSC   | cart.ko4         | 
  | KONAMI with SSC(EN)  | cart.ko5         | 
