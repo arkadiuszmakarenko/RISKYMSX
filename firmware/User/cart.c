@@ -187,6 +187,14 @@ void Init_Cart (void) {
 
 
     switch (type) {
+    case ROM16k:
+        state_pointer->bankOffsets[0] = -0x4000;
+        state_pointer->bankOffsets[1] = -0x8000;
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 1 - 0001
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        SetVTFIRQ ((u32)RunCart16k, EXTI3_IRQn, 0, ENABLE);
+        break;
+
     case ROM32k:
         state_pointer->bankOffsets[0] = -0x4000;
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  // 1 - 0001
@@ -292,6 +300,23 @@ void Init_Cart (void) {
     default:
         break;
     }
+}
+
+void RunCart16k (void) {
+
+    uint16_t address = (uint16_t)GPIOE->INDR;
+    if (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        GPIOD->CFGLR = state_pointer->BusOn;
+        if (address < 0x8000) {
+            GPIOD->OUTDR = *(cartpnt + (address + state_pointer->bankOffsets[0]));
+        } else {
+            GPIOD->OUTDR = *(cartpnt + (address + state_pointer->bankOffsets[1]));
+        }
+        EXTI->INTFR = state_pointer->IRQLine3;
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = state_pointer->BusOff;
+    }
+    return;
 }
 
 void RunCart32k (void) {

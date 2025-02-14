@@ -5,6 +5,7 @@
 #include "utils.h"
 
 typedef enum CartType {
+    ROM16k,
     ROM32k,
     ROM48k,
     KonamiWithoutSCC,
@@ -22,6 +23,7 @@ extern uint16_t __cfg_section_start;
 extern CircularBuffer cb;
 
 void Init_Cart (void);
+void RunCart16k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunCart32k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunCart48k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunKonamiWithoutSCC (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));

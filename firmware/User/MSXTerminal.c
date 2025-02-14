@@ -37,6 +37,7 @@ void Init_MSXTerminal (void) {
     while (MountDrive() == 0) { };
 
     // auto program
+    ProgramCart (ROM16k, "/CART.R16");
     ProgramCart (ROM32k, "/CART.R32");
     ProgramCart (ROM48k, "/CART.R48");
     ProgramCart (KonamiWithoutSCC, "/CART.KO4");
@@ -56,7 +57,7 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, "          RISKY MSX ");
+    appendString (&scb, " v0.8.4   RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -69,7 +70,7 @@ void PrintMainMenu (int page) {
     }
 
     MoveCursor (22, 0);
-    appendString (&scb, "Folder:");
+    appendString (&scb, " Folder:");
 
     uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
     strcpy ((char *)location, (char *)menu.folder);
@@ -81,7 +82,7 @@ void PrintMainMenu (int page) {
     free (location);
 
     MoveCursor (23, 0);
-    appendString (&scb, " ARROWS,RETURN,ESC,1");
+    appendString (&scb, " ARROWS,RETURN,ESC,1-(MAPPER)");
 
 
     // Show cursor
@@ -236,7 +237,7 @@ void ProcessMSXTerminal (void) {
             }
 
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 8) {
+                if (menu.CartTypeIndex != 9) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
@@ -268,7 +269,7 @@ void ProcessMSXTerminal (void) {
             }
 
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 8) {
+                if (menu.CartTypeIndex != 9) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
@@ -327,6 +328,9 @@ void Reset() {
 void PrintMapperType (CartType type) {
     append (&scb, 0x20);
     switch (type) {
+    case ROM16k:
+        appendString (&scb, "Standard ROM 16k");
+        break;
     case ROM32k:
         appendString (&scb, "Standard ROM 32k");
         break;
@@ -361,24 +365,25 @@ void PrintMapperType (CartType type) {
 }
 
 void PrintMapperList() {
-
     MoveCursor (4, 2);
-    appendString (&scb, "Standard 32KB ROM");
+    appendString (&scb, "Standard 16KB ROM");
     MoveCursor (5, 2);
-    appendString (&scb, "Standard 48KB or 64KB ROM");
+    appendString (&scb, "Standard 32KB ROM");
     MoveCursor (6, 2);
-    appendString (&scb, "KONAMI without SCC");
+    appendString (&scb, "Standard 48KB or 64KB ROM");
     MoveCursor (7, 2);
-    appendString (&scb, "KONAMI with SCC (EN)");
+    appendString (&scb, "KONAMI without SCC");
     MoveCursor (8, 2);
-    appendString (&scb, "KONAMI with SCC (DIS)");
+    appendString (&scb, "KONAMI with SCC (EN)");
     MoveCursor (9, 2);
-    appendString (&scb, "ASCII 8KB");
+    appendString (&scb, "KONAMI with SCC (DIS)");
     MoveCursor (10, 2);
-    appendString (&scb, "ASCII 16KB");
+    appendString (&scb, "ASCII 8KB");
     MoveCursor (11, 2);
-    appendString (&scb, "NEO 8KB");
+    appendString (&scb, "ASCII 16KB");
     MoveCursor (12, 2);
+    appendString (&scb, "NEO 8KB");
+    MoveCursor (13, 2);
     appendString (&scb, "NEO 16KB");
 
     MoveCursor (23, 0);
