@@ -747,7 +747,7 @@ int isFile (uint8_t Filename[64]) {
     return 0;
 }
 
-int printFilename (uint8_t FileArray[64]) {
+int printFilename (uint8_t FileArray[64], uint32_t ShortNames) {
     char *str = NULL;
     uint8_t FileName[64];
     uint8_t FileNameSize[5];
@@ -791,23 +791,27 @@ int printFilename (uint8_t FileArray[64]) {
 
         uint32_t FileSize = CHRV3vFileSize;
 
-        CHRV3GetLongName();
-
-        int PositionIndex = 0;
-        for (int j = 0; j != LONG_NAME_BUF_LEN; j = j + 2) {
-            if ((LongNameBuf[j] == 0x00) && (LongNameBuf[j + 1] == 0x00)) {
-                break;
-            }
-            if (LongNameBuf[j] != 0x00)
-                FileName[(PositionIndex++)] = LongNameBuf[j];
-        }
-
-        if (PositionIndex == 0) {
+        if (ShortNames) {
             int length = strlen ((char *)mCmdParam.Open.mPathName);
             strcpy ((char *)FileName, (char *)mCmdParam.Open.mPathName + 1);
             FileName[length - 1] = 0x20;
-        }
+        } else {
+            CHRV3GetLongName();
+            int PositionIndex = 0;
+            for (int j = 0; j != LONG_NAME_BUF_LEN; j = j + 2) {
+                if ((LongNameBuf[j] == 0x00) && (LongNameBuf[j + 1] == 0x00)) {
+                    break;
+                }
+                if (LongNameBuf[j] != 0x00)
+                    FileName[(PositionIndex++)] = LongNameBuf[j];
+            }
 
+            if (PositionIndex == 0) {
+                int length = strlen ((char *)mCmdParam.Open.mPathName);
+                strcpy ((char *)FileName, (char *)mCmdParam.Open.mPathName + 1);
+                FileName[length - 1] = 0x20;
+            }
+        }
         uint32_t sizeAdjusted = 0;
         if (FileSize >= 1073741824) {  // 1 GB = 1073741824 bytes
             sizeAdjusted = FileSize / 1073741824;

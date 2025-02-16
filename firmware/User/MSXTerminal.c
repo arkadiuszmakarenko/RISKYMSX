@@ -18,8 +18,16 @@ typedef struct TerminalPageState {
 CircularBuffer scb;
 CircularBuffer icb;
 MenuState menu;
+uint32_t ShortNames;
 
 void Init_MSXTerminal (void) {
+
+    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) {
+        ShortNames = 1;
+    } else {
+        ShortNames = 0;
+    }
+
     initBuffer (&scb);
     initMiniBuffer (&icb);
     menu.Filename = (uint8_t *)malloc (64 * sizeof (uint8_t));
@@ -28,7 +36,6 @@ void Init_MSXTerminal (void) {
     for (int i = 0; i < 20; i++) {
         menu.FileArray[i] = (uint8_t *)malloc (64 * sizeof (uint8_t));
     }
-
 
     IAP_Initialization();
     ClearScreen();
@@ -57,7 +64,7 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, " v0.8.4   RISKY MSX ");
+    appendString (&scb, " v0.9     RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -66,7 +73,7 @@ void PrintMainMenu (int page) {
 
     for (int i = 0; i < menu.FileIndexSize; i++) {
         MoveCursor (i + 1, 1);
-        printFilename (menu.FileArray[i]);
+        printFilename (menu.FileArray[i], ShortNames);
     }
 
     MoveCursor (22, 0);
@@ -82,8 +89,7 @@ void PrintMainMenu (int page) {
     free (location);
 
     MoveCursor (23, 0);
-    appendString (&scb, " ARROWS,RETURN,ESC,1-(MAPPER)");
-
+    appendString (&scb, " ARROWS,RETURN,ESC,1-MAPPER 9");
 
     // Show cursor
     append (&scb, 0x1B);
@@ -102,7 +108,7 @@ void PrintMapperMenu() {
     NewLine();
     append (&scb, 0x20);
     // todo
-    printFilename (menu.Filename);
+    printFilename (menu.Filename, ShortNames);
     NewLine();
     PrintMapperList();
 
@@ -210,8 +216,6 @@ void ProcessMSXTerminal (void) {
                     handle_path ((char *)menu.Filename);
                     strcat ((char *)menu.Filename, "/*");
                     strcpy ((char *)menu.folder, (char *)menu.Filename);
-                    // appendString (&scb, (char *)menu.folder);
-                    // menu.FileIndexPage = 1;
                     PrintMainMenu (menu.FileIndexPage);
                     return;
                 }
@@ -223,6 +227,17 @@ void ProcessMSXTerminal (void) {
                 menu.FileIndexPage = 0;
                 menu.pageName = CHANGEMAPPER;
                 ChangeMapperMenu();
+            }
+
+            if (key == 0x39) {
+                ShortNames ^= 1;
+                ClearScreen();
+                appendString (&scb, "Insert USB.");
+                while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
+                while (MountDrive() == 0) { };
+                menu.FileIndexPage = 1;
+                strcpy ((char *)menu.folder, "/*");
+                PrintMainMenu (menu.FileIndexPage);
             }
 
             break;
@@ -247,7 +262,7 @@ void ProcessMSXTerminal (void) {
                 ClearScreen();
                 appendString (&scb, " Programming file:");
                 NewLine();
-                printFilename (menu.Filename);
+                printFilename (menu.Filename, ShortNames);
                 NewLine();
                 NewLine();
                 appendString (&scb, " Mapper type:");

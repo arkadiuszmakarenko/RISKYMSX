@@ -108,7 +108,7 @@ extern void MapperCode_Update (CartType type);
 
 extern int MountDrive (void);
 extern int isFile (uint8_t Filename[64]);
-extern int printFilename (uint8_t FileArray[64]);
+extern int printFilename (uint8_t FileArray[64], uint32_t ShortNames);
 extern int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page);
 extern void ProgramCart (CartType cartType, char *Filename);
 
