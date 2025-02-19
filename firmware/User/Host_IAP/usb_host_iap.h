@@ -112,7 +112,7 @@ extern int printFilename (uint8_t FileArray[64], uint32_t ShortNames);
 extern int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page);
 extern void ProgramCart (CartType cartType, char *Filename);
 
-extern int8_t CHRV3GetLongName (void);
+extern uint8_t CHRV3GetLongName (void);
 extern uint8_t CheckNameSum (uint8_t *p);
 extern uint8_t GetUpSectorData (uint32_t *NowSector);
 

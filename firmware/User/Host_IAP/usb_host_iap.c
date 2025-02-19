@@ -752,7 +752,7 @@ int printFilename (uint8_t FileArray[64], uint32_t ShortNames) {
     uint8_t FileName[64];
     uint8_t FileNameSize[5];
     uint8_t isFolder = 0;
-
+    uint8_t ret = 0;
     str = strstr ((char *)FileArray, "/..");
     if (str != NULL) {
         appendString (&scb, " ..");
@@ -792,11 +792,28 @@ int printFilename (uint8_t FileArray[64], uint32_t ShortNames) {
         uint32_t FileSize = CHRV3vFileSize;
 
         if (ShortNames) {
-            int length = strlen ((char *)mCmdParam.Open.mPathName);
-            strcpy ((char *)FileName, (char *)mCmdParam.Open.mPathName + 1);
-            FileName[length - 1] = 0x20;
+
+            char *lastSlash = strrchr ((char *)mCmdParam.Open.mPathName, '/');
+            if (lastSlash != NULL) {
+                strcpy ((char *)FileName, lastSlash + 1);
+                int length = strlen ((char *)FileName);
+                FileName[length] = 0x20;
+            }
+
+
         } else {
-            CHRV3GetLongName();
+            ret = CHRV3GetLongName();
+            if (ret != ERR_SUCCESS) {
+                char *lastSlash = strrchr ((char *)mCmdParam.Open.mPathName, '/');
+                if (lastSlash != NULL) {
+                    strcpy ((char *)FileName, lastSlash + 1);
+                    int length = strlen ((char *)FileName);
+                    FileName[length] = 0x20;
+                }
+                goto NEXTPRO;
+            }
+
+
             int PositionIndex = 0;
             for (int j = 0; j != LONG_NAME_BUF_LEN; j = j + 2) {
                 if ((LongNameBuf[j] == 0x00) && (LongNameBuf[j + 1] == 0x00)) {
@@ -812,6 +829,8 @@ int printFilename (uint8_t FileArray[64], uint32_t ShortNames) {
                 FileName[length - 1] = 0x20;
             }
         }
+
+NEXTPRO:;
         uint32_t sizeAdjusted = 0;
         if (FileSize >= 1073741824) {  // 1 GB = 1073741824 bytes
             sizeAdjusted = FileSize / 1073741824;
@@ -846,8 +865,10 @@ int printFilename (uint8_t FileArray[64], uint32_t ShortNames) {
             append (&scb, FileNameSize[x]);
         }
         CHRV3FileClose();
+        CHRV3DirtyBuffer();
         return 1;
     }
+    CHRV3DirtyBuffer();
     return 0;
 }
 
@@ -861,6 +882,8 @@ int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page) {
             FileArray[i][j] = 0x00;
         }
     }
+    CHRV3DirtyBuffer();
+
     CHRV3DiskConnect();
     if ((CHRV3DiskStatus >= DISK_MOUNTED)) {
 
@@ -874,12 +897,14 @@ int listFiles (uint8_t folder[64], uint8_t *FileArray[20], int page) {
             ret = CHRV3FileOpen();
             if (ret == ERR_MISS_DIR || ret == ERR_MISS_FILE) {
                 CHRV3FileClose();
+                CHRV3DirtyBuffer();
                 continue;
             }
 
             strcpy ((char *)FileArray[size], (char *)mCmdParam.Open.mPathName);
             size++;
             CHRV3FileClose();
+            CHRV3DirtyBuffer();
         }
     }
     return size;
@@ -998,12 +1023,11 @@ void ProgramCart (CartType cartType, char *Filename) {
     }
 }
 
-int8_t CHRV3GetLongName (void) {
+uint8_t CHRV3GetLongName (void) {
     uint8_t i;
     uint16_t index;
     uint32_t BackFdtSector;
     uint8_t sum;
-    // uint16_t  Backoffset;
     uint16_t offset;
     uint8_t FirstBit;
     uint8_t BackPathBuf[MAX_PATH_LEN];
@@ -1012,12 +1036,13 @@ int8_t CHRV3GetLongName (void) {
     if ((i == ERR_SUCCESS) || (i == ERR_OPEN_DIR)) {
         for (i = 0; i != MAX_PATH_LEN; i++)
             BackPathBuf[i] = mCmdParam.Open.mPathName[i];
+
         sum = CheckNameSum (&DISK_BASE_BUF[CHRV3vFdtOffset]);
         index = 0;
         FirstBit = FALSE;
-        //  Backoffset = CHRV3vFdtOffset;
         BackFdtSector = CHRV3vFdtLba;
         if (CHRV3vFdtOffset == 0) {
+
             if (FirstBit == FALSE)
                 FirstBit = TRUE;
             i = GetUpSectorData (&BackFdtSector);
@@ -1033,35 +1058,55 @@ P_NEXT1:
                 if (offset != 0) {
                     offset = offset - 32;
                     if ((DISK_BASE_BUF[offset + 11] == ATTR_LONG_NAME) && (DISK_BASE_BUF[offset + 13] == sum)) {
-                        // if ((index + 26) > LONG_NAME_BUF_LEN)
-                        //     return ERR_BUF_OVER;
+                        if ((index + 26) > LONG_NAME_BUF_LEN)
+                            return ERR_BUF_OVER;
 
                         for (i = 0; i != 5; i++) {
-
+#if UNICODE_ENDIAN == 1
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + i * 2 + 2];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + i * 2 + 1];
+#else
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + i * 2 + 1];
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + i * 2 + 2];
+#endif
                         }
 
                         for (i = 0; i != 6; i++) {
+#if UNICODE_ENDIAN == 1
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 14 + i * 2 + 1];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + +14 + i * 2];
+#else
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + +14 + i * 2];
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + 14 + i * 2 + 1];
+#endif
                         }
 
                         for (i = 0; i != 2; i++) {
+#if UNICODE_ENDIAN == 1
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 28 + i * 2 + 1];
+                            LongNameBuf[index++] =
+                                DISK_BASE_BUF[offset + 28 + i * 2];
+#else
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + 28 + i * 2];
                             LongNameBuf[index++] =
                                 DISK_BASE_BUF[offset + 28 + i * 2 + 1];
+#endif
                         }
 
                         if (DISK_BASE_BUF[offset] & 0X40) {
-                            if (!(((LongNameBuf[index - 1] == 0x00) && (LongNameBuf[index - 2] == 0x00)) || ((LongNameBuf[index - 1] == 0xFF) && (LongNameBuf[index - 2] == 0xFF)))) {
-                                //  if (index + 52 > LONG_NAME_BUF_LEN)
-                                //      return ERR_BUF_OVER;
+                            if (!(((LongNameBuf[index - 1] == 0x00) && (LongNameBuf[index - 2] == 0x00)) || ((LongNameBuf[index - 1] == 0xFF) && (LongNameBuf[index - 2] == 0xFF)))) {  // 处理刚好为26字节长倍数的文件名
+                                if (index + 52 > LONG_NAME_BUF_LEN)
+                                    return ERR_BUF_OVER;
                                 LongNameBuf[index] = 0x00;
                                 LongNameBuf[index + 1] = 0x00;
                             }
@@ -1131,8 +1176,8 @@ P_NEXT0:
                 i = CHRV3FileLocate();
                 if (i == ERR_SUCCESS) {
                     if (*NowSector == mCmdParam.Locate.mSectorOffset) {
-                        // if (index == 0)
-                        //   return ERR_NO_NAME;
+                        if (index == 0)
+                            return ERR_NO_NAME;
                         mCmdParam.Locate.mSectorOffset = --index;
                         i = CHRV3FileLocate();
                         if (i == ERR_SUCCESS) {
@@ -1140,6 +1185,7 @@ P_NEXT0:
                             mCmdParam.Read.mSectorCount = 1;
                             mCmdParam.Read.mDataBuffer = &DISK_BASE_BUF[0];
                             i = CHRV3FileRead();
+                            CHRV3DirtyBuffer();
                             return i;
                         } else
                             return i;
