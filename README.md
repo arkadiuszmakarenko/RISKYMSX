@@ -48,6 +48,7 @@ You need WCHISPTool from https://wch-ic.com/ website.
  * Chip Model : CH32V303VCT6
  * Select Object File1 and pick up firmware .bin.
  * Under Chip Config select Chip Memory Allocation RAMX 32KB + ROM 288KB
+ * Click Deprotect
  * Click Download
 
 ### Linux
