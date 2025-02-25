@@ -111,6 +111,6 @@ void SCC_HandleBufer() {
 }
 
 void TIM6_IRQHandler() {
-    Dual_DAC_Value[0] = (((SCC_calc (scc) + 0x8000) >> 4) & 0xFFF) * 1.7;
+    Dual_DAC_Value[0] = (((SCC_calc (scc) + 0x8000) >> 4) & 0xFFF);
     TIM_ClearITPendingBit (TIM6, TIM_IT_Update);
 }
