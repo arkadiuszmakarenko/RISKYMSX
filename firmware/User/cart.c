@@ -165,6 +165,7 @@ CircularBuffer *ibuf;
 
 // Config Cart emulation hardware.
 void Init_Cart (void) {
+    SCC_Init();
     state_pointer = &state;
     cartpnt = (uint8_t *)&__cart_section_start;
     buf = &cb;
@@ -219,7 +220,6 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunKonamiWithoutSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCC:
-        SCC_Init();
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // 4 - 0100
         state_pointer->bankOffsets[2] = -0x4000;
         state_pointer->bankOffsets[3] = -0x6000;

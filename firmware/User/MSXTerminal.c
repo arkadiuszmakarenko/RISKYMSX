@@ -64,7 +64,7 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, " v2.01   RISKY MSX ");
+    appendString (&scb, " v2.02   RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -337,7 +337,13 @@ void Reset() {
     append (&scb, 0x03);
     append (&scb, 0x03);
     Delay_Ms (100);
-    PFIC->SCTLR |= (1 << 31);
+    // PFIC->SCTLR |= (1 << 31);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_SET);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_SET);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_SET);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_SET);
+
+    Init_Cart();
 }
 
 void PrintMapperType (CartType type) {
