@@ -15,12 +15,22 @@ typedef struct TerminalPageState {
     uint8_t *Filename;
 } MenuState;
 
+extern CircularBuffer cb;
 CircularBuffer scb;
 CircularBuffer icb;
 MenuState menu;
 uint32_t ShortNames;
+uint32_t volatile enableTerminal = 0;
+
+int PointerX = 1;
+int PointerY = 1;
 
 void Init_MSXTerminal (void) {
+
+    initBuffer (&scb);
+    initMiniBuffer (&icb);
+
+    while (enableTerminal == 0) { };
 
     if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) {
         ShortNames = 1;
@@ -28,8 +38,6 @@ void Init_MSXTerminal (void) {
         ShortNames = 0;
     }
 
-    initBuffer (&scb);
-    initMiniBuffer (&icb);
     menu.Filename = (uint8_t *)malloc (64 * sizeof (uint8_t));
     menu.folder = (uint8_t *)malloc (64 * sizeof (uint8_t));
 
@@ -39,6 +47,11 @@ void Init_MSXTerminal (void) {
 
     IAP_Initialization();
     ClearScreen();
+
+    GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  //  7 - 0111
+    GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
     appendString (&scb, "Insert USB.");
     while (CHRV3DiskConnect() != ERR_USB_DISCON) { };
     while (MountDrive() == 0) { };
@@ -60,11 +73,12 @@ void Init_MSXTerminal (void) {
 }
 
 void PrintMainMenu (int page) {
+    ResetPointer();
     menu.pageName = MAIN;
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, " v2.02   RISKY MSX ");
+    appendString (&scb, " v2.1.1   RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -92,14 +106,17 @@ void PrintMainMenu (int page) {
     appendString (&scb, " ARROWS,RETURN,ESC,1-MAPPER 9");
 
     // Show cursor
-    append (&scb, 0x1B);
-    append (&scb, 0x79);
-    append (&scb, 0x35);
+    // append (&scb, 0x1B);
+    // append (&scb, 0x79);
+    // append (&scb, 0x35);
+
 
     MoveCursor (1, 1);
+    MovePointer (PointerX, PointerY);
 }
 
 void PrintMapperMenu() {
+    ResetPointer();
     menu.pageName = MAPPER;
     ClearScreen();
     appendString (&scb, "          RISKY MSX ");
@@ -123,9 +140,16 @@ void PrintMapperMenu() {
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
     MoveCursor (4, 1);
+    PointerX = 1;
+    PointerY = 4;
+    MovePointer (PointerX, PointerY);
 }
 
 void ChangeMapperMenu() {
+    ResetPointer();
+    PointerX = 1;
+    PointerY = 4;
+    MovePointer (PointerX, PointerY);
     char filesize[10] = {0};
     char file[64] = {0};
     CART_CFG volatile *cfg;
@@ -164,8 +188,10 @@ void ChangeMapperMenu() {
 
 void ProcessMSXTerminal (void) {
     uint32_t key;
+
     if (popmini (&icb, &key) == 0) {
         if (key == 0x1B) {
+
             ClearScreen();
             appendString (&scb, "Insert USB.");
             while (CHRV3DiskConnect() == ERR_USB_DISCON) { };
@@ -260,6 +286,7 @@ void ProcessMSXTerminal (void) {
 
             if (key == 0x0D) {
                 ClearScreen();
+                MovePointer (0xFF, 0xFF);
                 appendString (&scb, " Programming file:");
                 NewLine();
                 printFilename (menu.Filename, ShortNames);
@@ -292,6 +319,7 @@ void ProcessMSXTerminal (void) {
 
             if (key == 0x0D) {
                 ClearScreen();
+                MovePointer (0xFF, 0xFF);
                 MapperCode_Update (menu.CartTypeIndex);
                 appendString (&scb, " Rebooting ...");
                 Reset();
@@ -317,6 +345,13 @@ void MoveCursor (int x, int y) {
     append (&scb, (0x20 + y));
 }
 
+void MovePointer (int x, int y) {
+
+    append (&scb, 0x04);
+    append (&scb, x * 8);
+    append (&scb, y * 8);
+}
+
 void ClearScreen() {
     append (&scb, 0x1B);
     append (&scb, 0x45);
@@ -325,25 +360,21 @@ void ClearScreen() {
 void CursorUp() {
     append (&scb, 0x1B);
     append (&scb, 0x41);
+    PointerY--;
+    MovePointer (PointerX, PointerY);
 }
 
 void CursorDown() {
+
     append (&scb, 0x1B);
     append (&scb, 0x42);
+    PointerY++;
+    MovePointer (PointerX, PointerY);
 }
 
 void Reset() {
 
     append (&scb, 0x03);
-    append (&scb, 0x03);
-    Delay_Ms (100);
-    // PFIC->SCTLR |= (1 << 31);
-    GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_SET);
-    GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_SET);
-    GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_SET);
-    GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_SET);
-
-    Init_Cart();
 }
 
 void PrintMapperType (CartType type) {
@@ -408,4 +439,9 @@ void PrintMapperList() {
     appendString (&scb, "NEO 16KB");
 
     MoveCursor (23, 0);
+}
+
+void ResetPointer() {
+    PointerX = 1;
+    PointerY = 1;
 }

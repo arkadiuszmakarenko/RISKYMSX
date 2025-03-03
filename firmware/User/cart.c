@@ -1,6 +1,6 @@
 #include "cart.h"
 #include "scc.h"
-
+#include "MSXTerminal.h"
 // GPIOE Pins    0 - 16      Address
 // GPIOD Pins    0 - 8       Data
 
@@ -26,12 +26,39 @@
 
 extern CircularBuffer scb;
 extern CircularBuffer icb;
+extern CircularBuffer cb;
+extern uint32_t enableTerminal;
 
-static unsigned char msxterm[117] = {
+static unsigned char msxterm[159] = {
     'A',
     'B',
     04,
     '@',
+    '!',
+    021,
+    '@',
+    021,
+    0,
+    0340,
+    01,
+    0206,
+    0,
+    0325,
+    0355,
+    0260,
+    0311,
+    '>',
+    06,
+    0315,
+    'A',
+    01,
+    0346,
+    04,
+    '2',
+    0376,
+    0177,
+    ' ',
+    'Y',
     '>',
     ' ',
     '2',
@@ -52,7 +79,7 @@ static unsigned char msxterm[117] = {
     '_',
     0,
     '!',
-    'm',
+    0227,
     '@',
     021,
     0,
@@ -71,34 +98,20 @@ static unsigned char msxterm[117] = {
     0315,
     'M',
     0,
-    '!',
-    '8',
-    '@',
-    021,
-    0,
-    0340,
-    01,
-    '5',
-    0,
-    0325,
-    0355,
-    0260,
-    0311,
     ':',
     0377,
     0177,
     0376,
     03,
-    0312,
-    0,
-    0,
+    '(',
+    '+',
     0376,
     04,
     '(',
-    026,
+    024,
     0247,
     0314,
-    ' ',
+    '{',
     0340,
     0304,
     0242,
@@ -107,7 +120,7 @@ static unsigned char msxterm[117] = {
     0234,
     0,
     '(',
-    0350,
+    0351,
     0315,
     0237,
     0,
@@ -115,9 +128,7 @@ static unsigned char msxterm[117] = {
     0375,
     0177,
     030,
-    0340,
-    'v',
-    0311,
+    0341,
     ':',
     0377,
     0177,
@@ -136,7 +147,40 @@ static unsigned char msxterm[117] = {
     'M',
     0,
     030,
-    0313,
+    0316,
+    0315,
+    '{',
+    0340,
+    0315,
+    '{',
+    0340,
+    021,
+    'v',
+    0340,
+    '!',
+    04,
+    0,
+    '9',
+    's',
+    '#',
+    'r',
+    0311,
+    0301,
+    0341,
+    0303,
+    0204,
+    '}',
+    0365,
+    0373,
+    '!',
+    0236,
+    0374,
+    '~',
+    0276,
+    '(',
+    0375,
+    0361,
+    0311,
     ' ',
     '0',
     '8',
@@ -159,15 +203,17 @@ struct MSXState {
 CartType type;
 struct MSXState *state_pointer;
 uint8_t *restrict cartpnt;
+uint8_t *rampnt;
 CircularBuffer *buf;
 CircularBuffer *sbuf;
 CircularBuffer *ibuf;
 
 // Config Cart emulation hardware.
-void Init_Cart (void) {
-    SCC_Init();
+void Init_Cart (uint8_t CartEmulation) {
+
     state_pointer = &state;
     cartpnt = (uint8_t *)&__cart_section_start;
+    rampnt = (uint8_t *)0x20007C00;
     buf = &cb;
     sbuf = &scb;
     ibuf = &icb;
@@ -178,7 +224,8 @@ void Init_Cart (void) {
     cfg = (CART_CFG *)cfgpnt;
     type = cfg->CartType;
 
-    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_8) != 0) {
+    uint8_t value = *rampnt;
+    if (value != 1) {
         type = MSXTERMINAL;
     }
 
@@ -220,6 +267,8 @@ void Init_Cart (void) {
         SetVTFIRQ ((u32)RunKonamiWithoutSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCC:
+        deinitBuffer (buf);
+        initBuffer (buf);
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // 4 - 0100
         state_pointer->bankOffsets[2] = -0x4000;
         state_pointer->bankOffsets[3] = -0x6000;
@@ -289,10 +338,6 @@ void Init_Cart (void) {
         break;
 
     case MSXTERMINAL:
-        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  //  7 - 0111
-        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
-        GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
-        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
         break;
@@ -391,8 +436,8 @@ void RunKonamiWithSCC (void) {
     }
 
     EXTI->INTFR = state_pointer->IRQLine3;
-    if (address > 0xB000)
-        return;
+    //  if (address > 0xB000)
+    //      return;
 
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
     uint32_t AddressData = (((uint32_t)address << 16) | WriteData);
@@ -631,6 +676,20 @@ void RunMSXTerminal (void) {
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
+            if (address == 0x7FFE) {
+                if (WriteData != 0) {
+                    GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_SET);
+                    GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_SET);
+                    GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_SET);
+                    GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_SET);
+
+                    *rampnt = 1;
+                    PFIC->SCTLR |= (1 << 31);
+                } else {
+                    enableTerminal = 1;
+                }
+                return;
+            }
             if (address == 0x7FFD) {
                 uint8_t next = (ibuf->head + 1) & (BUFFER_MINI_SIZE - 1);
                 ibuf->buffer[ibuf->head] = WriteData;

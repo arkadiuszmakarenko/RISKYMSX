@@ -14,6 +14,15 @@ void initMiniBuffer (CircularBuffer *cb) {
     cb->tail = 0;
 }
 
+void deinitBuffer (CircularBuffer *cb) {
+    if (cb->buffer != NULL) {
+        free (cb->buffer);  // Free allocated memory
+        cb->buffer = NULL;  // Avoid dangling pointer
+    }
+    cb->head = 0;
+    cb->tail = 0;
+}
+
 int isFull (CircularBuffer *cb) {
     uint32_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
     if (next == cb->tail) {

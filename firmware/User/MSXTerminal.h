@@ -19,11 +19,14 @@ void ChangeMapperMenu();
 void ProcessMSXTerminal (void);
 void NewLine (void);
 void MoveCursor (int x, int y);
+void MovePointer (int x, int y);
 void ClearScreen();
 void CursorUp();
 void CursorDown();
 void Reset();
 void PrintMapperType (CartType type);
 void PrintMapperList();
+void ResetPointer();
+
 
 #endif /* __MSXTerminal_H */

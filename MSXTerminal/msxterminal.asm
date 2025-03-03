@@ -1,3 +1,5 @@
+   OUTPUT "msxterm.bin"
+
         ORG #4000
         DW #4241,INIT        ; Important part of ROM cartridge header
         ;DW 0,0,0,0,0,0      ; This part of ROM cartridge header we skip as we never exit so it will not be handled.

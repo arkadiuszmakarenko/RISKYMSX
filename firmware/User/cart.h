@@ -20,9 +20,9 @@ typedef enum CartType {
 
 extern unsigned int __cart_section_start;
 extern uint16_t __cfg_section_start;
-extern CircularBuffer cb;
 
-void Init_Cart (void);
+
+void Init_Cart (uint8_t CartEmulation);
 void RunCart16k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunCart32k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunCart48k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));

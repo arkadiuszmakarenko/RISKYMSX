@@ -17,6 +17,7 @@ typedef struct {
 
 void initBuffer (CircularBuffer *cb);
 void initMiniBuffer (CircularBuffer *cb);
+void deinitBuffer (CircularBuffer *cb);
 int append (CircularBuffer *cb, uint32_t item);
 int pop (CircularBuffer *cb, uint32_t *item);
 int popmini (CircularBuffer *cb, uint32_t *item);

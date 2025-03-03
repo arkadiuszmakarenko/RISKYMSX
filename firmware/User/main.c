@@ -25,8 +25,8 @@ int main (void) {
         // Configure 288kb Flash + 32k RAM.
         SetSplit();
     }
-
-    Init_Cart();
+    SCC_Init();
+    Init_Cart (0);
 
     if (type == MSXTERMINAL) {
 
@@ -39,9 +39,10 @@ int main (void) {
         if (!GPIO_ReadInputDataBit (GPIOC, GPIO_Pin_6)) {
             PFIC->SCTLR |= (1 << 31);
         }
+        SCC_HandleBufer();
         switch (type) {
         case KonamiWithSCC:
-            SCC_HandleBufer();
+
             break;
 
         case MSXTERMINAL:
