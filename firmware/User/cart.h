@@ -23,16 +23,10 @@ extern uint16_t __cfg_section_start;
 
 
 void Init_Cart (uint8_t CartEmulation);
-void RunCart16k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void RunCart32k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void RunCart48k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void RunKonamiWithoutSCC (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
+
 void RunKonamiWithSCC (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunKonamiWithSCCNOSCC (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void Run8kASCII (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void Run16kASCII (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void RunNEO16 (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
-void RunNEO8 (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
+
 void RunMSXTerminal (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 
 typedef struct _CART_CFG {

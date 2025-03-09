@@ -152,4 +152,12 @@ void handle_path (char *str) {
     }
 }
 
+uint32_t GetTimeBetweenEvents (uint32_t start, uint32_t end) {
+    if (end >= start) {
+        return end - start;             // No overflow
+    } else {
+        return (0xFFFF - start + end);  // Handle overflow
+    }
+}
+
 #pragma GCC pop_options

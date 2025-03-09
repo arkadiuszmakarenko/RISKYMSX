@@ -157,18 +157,18 @@ update_output (SCC *scc) {
     for (i = 0; i < 5; i++) {
         scc->count[i] = (scc->count[i] + scc->incr[i]);
 
-        if (scc->count[i] & (1 << (GETA_BITS + 5))) {
-            scc->count[i] &= ((1 << (GETA_BITS + 5)) - 1);
-            scc->offset[i] = (scc->offset[i] + 31) & scc->rotate[i];
-            scc->ch_enable &= ~(1 << i);
-            scc->ch_enable |= scc->ch_enable_next & (1 << i);
-        }
+        // if (scc->count[i] & (1 << (GETA_BITS + 5))) {
+        //     scc->count[i] &= ((1 << (GETA_BITS + 5)) - 1);
+        //     scc->offset[i] = (scc->offset[i] + 31) & scc->rotate[i];
+        //    scc->ch_enable &= ~(1 << i);
+        //    scc->ch_enable |= scc->ch_enable_next & (1 << i);
+        //}
 
-        if (scc->ch_enable & (1 << i)) {
-            scc->phase[i] = ((scc->count[i] >> (GETA_BITS)) + scc->offset[i]) & 0x1F;
-            if (!(scc->mask & SCC_MASK_CH (i)))
-                scc->ch_out[i] += (scc->volume[i] * scc->wave[i][scc->phase[i]]) & 0xfff0;
-        }
+        // if (scc->ch_enable & (1 << i)) {
+        scc->phase[i] = ((scc->count[i] >> (GETA_BITS))) & 0x1F;
+        //  if (!(scc->mask & SCC_MASK_CH (i)))
+        scc->ch_out[i] += (scc->volume[i] * scc->wave[i][scc->phase[i]]);
+        //}
 
         scc->ch_out[i] >>= 1;
     }
@@ -182,17 +182,7 @@ mix_output (SCC *scc) {
 
 int16_t
 SCC_calc (SCC *scc) {
-    if (!scc->quality) {
-        update_output (scc);
-        return mix_output (scc);
-    }
-
-    while (scc->realstep > scc->scctime) {
-        scc->scctime += scc->sccstep;
-        update_output (scc);
-    }
-    scc->scctime -= scc->realstep;
-
+    update_output (scc);
     return mix_output (scc);
 }
 
@@ -287,28 +277,6 @@ write_standard (SCC *scc, uint32_t adr, uint32_t val) {
     }
 }
 
-static inline void
-write_enhanced (SCC *scc, uint32_t adr, uint32_t val) {
-    adr &= 0xFF;
-
-    if (adr < 0xA0) /* wave */
-    {
-        SCC_writeReg (scc, adr, val);
-    } else if (adr < 0xAA) /* freq */
-    {
-        SCC_writeReg (scc, adr + 0xC0 - 0xA0, val);
-    } else if (adr < 0xAF) /* volume */
-    {
-        SCC_writeReg (scc, adr + 0xD0 - 0xAA, val);
-    } else if (adr == 0xAF) /* ch enable */
-    {
-        SCC_writeReg (scc, 0xE1, val);
-    } else if (0xC0 <= adr && adr <= 0xDF) /* flags */
-    {
-        SCC_writeReg (scc, 0xE2, val);
-    }
-}
-
 static inline uint32_t
 read_enhanced (SCC *scc, uint32_t adr) {
     adr &= 0xFF;
@@ -384,10 +352,6 @@ SCC_read (SCC *scc, uint32_t adr) {
 void SCC_write (SCC *scc, uint32_t adr, uint32_t val) {
     val = val & 0xFF;
 
-    if (scc->type == SCC_ENHANCED && (adr & 0xFFFE) == 0xBFFE) {
-        scc->base_adr = 0x9000 | ((val & 0x20) << 8);
-        return;
-    }
 
     if (adr < scc->base_adr)
         return;
@@ -396,9 +360,6 @@ void SCC_write (SCC *scc, uint32_t adr, uint32_t val) {
     if (adr == 0) {
         if (val == 0x3F) {
             scc->mode = 0;
-            scc->active = 1;
-        } else if (val & 0x80 && scc->type == SCC_ENHANCED) {
-            scc->mode = 1;
             scc->active = 1;
         } else {
             scc->mode = 0;
@@ -410,18 +371,7 @@ void SCC_write (SCC *scc, uint32_t adr, uint32_t val) {
     if (!scc->active || adr < 0x800 || 0x8FF < adr)
         return;
 
-    switch (scc->type) {
-    case SCC_STANDARD:
-        write_standard (scc, adr, val);
-        break;
-    case SCC_ENHANCED:
-        if (scc->mode)
-            write_enhanced (scc, adr, val);
-        else
-            write_standard (scc, adr, val);
-    default:
-        break;
-    }
+    write_standard (scc, adr, val);
 
     return;
 }
