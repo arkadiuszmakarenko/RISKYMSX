@@ -23,6 +23,12 @@ void GPIO_Config() {
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init (GPIOA, &GPIO_InitStructure);
 
+    // set up DAC GPIO
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4 | GPIO_Pin_5;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init (GPIOA, &GPIO_InitStructure);
+    GPIO_SetBits (GPIOA, GPIO_Pin_4);
 
     EXTI_InitTypeDef EXTI_InitStructure = {0};
     RCC_APB2PeriphClockCmd (RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOB, ENABLE);
@@ -34,4 +40,19 @@ void GPIO_Config() {
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init (&EXTI_InitStructure);
+
+
+    // Set up DAC to remove hiss
+    DAC_InitTypeDef DAC_InitType = {0};
+    RCC_APB1PeriphClockCmd (RCC_APB1Periph_DAC, ENABLE);
+
+    DAC_InitType.DAC_Trigger = DAC_Trigger_T4_TRGO;
+    DAC_InitType.DAC_WaveGeneration = DAC_WaveGeneration_None;
+    DAC_InitType.DAC_LFSRUnmask_TriangleAmplitude = DAC_LFSRUnmask_Bit0;
+    DAC_InitType.DAC_OutputBuffer = DAC_OutputBuffer_Disable;
+    DAC_Init (DAC_Channel_1, &DAC_InitType);
+
+    DAC_Cmd (DAC_Channel_1, ENABLE);
+    DAC_DMACmd (DAC_Channel_1, ENABLE);
+    DAC_SetChannel1Data (DAC_Align_12b_R, 0x00);
 }

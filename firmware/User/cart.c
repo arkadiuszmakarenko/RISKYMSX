@@ -287,7 +287,6 @@ void Init_Cart (uint8_t CartEmulation) {
     state_pointer->BusOff = 0x44444444;
     state_pointer->IRQLine3 = EXTI_Line3;
 
-
     switch (type) {
     case ROM16k:
         state_pointer->bankOffsets[0] = -0x4000;
@@ -321,8 +320,7 @@ void Init_Cart (uint8_t CartEmulation) {
         SetVTFIRQ ((u32)RunKonamiWithoutSCC, EXTI3_IRQn, 0, ENABLE);
         break;
     case KonamiWithSCC:
-        deinitBuffer (buf);
-        initBuffer (buf);
+        SCC_Init();
         GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);  // 4 - 0100
         state_pointer->bankOffsets[2] = -0x4000;
         state_pointer->bankOffsets[3] = -0x6000;
