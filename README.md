@@ -72,7 +72,7 @@ If during power up and button pressed no LEDs are flashing your MPU doesn't star
 If you can download ROM to cart but MSX doesn't load data from cart then you have issues wih soldering of ADDRESS, DATA or BUS lines.
 
 ## Flashing ROMs 
-Press Flash button during MSX power up.
+Press and hold GRAPH button during MSX power up, until all LEDs on cart turn on.
 There might be some text appearing on the screen. This is section checking for auto flashing files.
 Follow instructions on the screen.
 You will be presented with list of files from root directory of the USB drive (currently DIR navigations are not supported). You can list more files by pressing <RIGHT> <LEFT> arrows.
@@ -80,7 +80,8 @@ You select file to flash by hitting <RETURN> then you need to select mapper type
 Then flashing will take place, and cartridge and MSX should reboot after the process is completed.
 
 <ESC> Reloads USB Flash drive data. This allows hot swapping USB stick during operation.
-
+<1> Change mapper - You can change mapper on a ROM that is already loaded to cart flash.
+<9> Changes Long filenames to short filenames. There are some issues with some longfile decoding, if you have issues with it, use short filenames. You can permanently turn this on my adding jumper on TxRx.
 <1> Mapper menu. This page allows to change mapper setting for a rom already flashed on the device. It allows quick change of mapper in case wrong one was picked up during ROM flashing.
 
 ## Auto flash files
