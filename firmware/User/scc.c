@@ -7,7 +7,7 @@ void DMA2_Channel3_IRQHandler (void) __attribute__ ((interrupt ("WCH-Interrupt-f
 
 /* Global define */
 CircularBuffer cb;
-uint32_t Dual_DAC_Value[1];
+uint32_t Dual_DAC_Value;
 
 
 /* Global Variable */
@@ -46,8 +46,8 @@ void SCC_Init (void) {
     RCC_APB1PeriphClockCmd (RCC_APB1Periph_TIM4, ENABLE);
 
     TIM_TimeBaseStructInit (&TIM_TimeBaseStructure);
-    TIM_TimeBaseStructure.TIM_Period = 1;
-    TIM_TimeBaseStructure.TIM_Prescaler = 3265;
+    TIM_TimeBaseStructure.TIM_Period = 3368;
+    TIM_TimeBaseStructure.TIM_Prescaler = 0;
     TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseInit (TIM4, &TIM_TimeBaseStructure);
@@ -72,6 +72,6 @@ void DMA2_Channel3_IRQHandler() {
             SCC_write (scc, address, data);
         }
         // chnage from int16 to uint16,round it and apply shift to get 12bit value.
-        Dual_DAC_Value[0] = ((SCC_calc (scc) + 0x8000 + 8) >> 4);
+        Dual_DAC_Value = ((SCC_calc (scc) + 0x8000 + 8) >> 4);
     }
 }
