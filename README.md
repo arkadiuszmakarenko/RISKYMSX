@@ -16,7 +16,7 @@ Testing team:
 Thank you very much for your support.
 
 
-![Rev1](https://github.com/user-attachments/assets/d9c3ec10-cc1b-43a5-8a99-4679dabca454)
+![RISKYMSXCart](https://github.com/user-attachments/assets/93ff6b32-1f0f-49db-b7b6-2c4e8e2ec17c)
 
 
 This is a universal cartridge for MSX series of computes. It can run up to 256KB ROMs, and emulate follwing mappings:
@@ -32,6 +32,7 @@ This is a universal cartridge for MSX series of computes. It can run up to 256KB
  * Neo 16k
 
 ## Building cartridge
+There is no need for flash button or crystal oscillator.
 
 Programming
 This chip can be programed using USB A to USB A cable, serial cable (under Windows) or WCH LinkE programmer (Windows and Linux).
