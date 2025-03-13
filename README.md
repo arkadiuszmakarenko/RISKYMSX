@@ -8,6 +8,7 @@ The following people contributed to this project and supported me with technical
 * NYYRIKKI
 * Aoineko
 * BG Ollie
+* MadHacker
 
 Testing team:
 * PhilC
