@@ -32,12 +32,6 @@ void Init_MSXTerminal (void) {
 
     while (enableTerminal == 0) { };
 
-    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_9) == 0) {
-        ShortNames = 1;
-    } else {
-        ShortNames = 0;
-    }
-
     menu.Filename = (uint8_t *)malloc (64 * sizeof (uint8_t));
     menu.folder = (uint8_t *)malloc (64 * sizeof (uint8_t));
 

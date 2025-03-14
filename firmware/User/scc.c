@@ -1,17 +1,13 @@
 #include "scc.h"
 #include "emu2212.h"
 #include "utils.h"
-#include "scc.h"
 
 void DMA2_Channel3_IRQHandler (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 
-/* Global define */
-CircularBuffer cb;
-uint32_t Dual_DAC_Value;
-
-
 /* Global Variable */
 SCC *scc;
+CircularBuffer cb;
+uint32_t Dual_DAC_Value;
 
 void SCC_Init (void) {
     scc = SCC_new (3554685, 44100);
@@ -19,9 +15,7 @@ void SCC_Init (void) {
     SCC_set_quality (scc, 0);
     SCC_set_type (scc, SCC_STANDARD);
 
-    GPIO_SetBits (GPIOA, GPIO_Pin_4);
     initBuffer (&cb);
-
 
     DMA_InitTypeDef DMA_InitStructure = {0};
     RCC_AHBPeriphClockCmd (RCC_AHBPeriph_DMA2, ENABLE);

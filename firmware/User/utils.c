@@ -129,14 +129,6 @@ int strToInt (const char *str) {
     return result;
 }
 
-int isPrintableCharacter (int value) {
-
-    if (value >= 0x20 && value <= 0x7E) {
-        return 1;
-    }
-    return 0;
-}
-
 void handle_path (char *str) {
     char *last_slash = strrchr (str, '/');
     if (last_slash != NULL) {
