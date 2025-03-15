@@ -17,8 +17,8 @@
 #endif 
 
 #if !defined(CH32V30x_D8) && !defined(CH32V30x_D8C)
-#define CH32V30x_D8              /* CH32V303x */
-//#define CH32V30x_D8C             /* CH32V307x-CH32V305x-CH32V317x */
+//#define CH32V30x_D8              /* CH32V303x */
+#define CH32V30x_D8C             /* CH32V307x-CH32V305x-CH32V317x */
 
 #endif
   
