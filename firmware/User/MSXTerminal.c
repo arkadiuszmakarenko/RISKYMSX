@@ -72,7 +72,7 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, " v2.1.5   RISKY MSX ");
+    appendString (&scb, " v2.1.6   RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
