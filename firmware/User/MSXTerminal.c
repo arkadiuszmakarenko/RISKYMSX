@@ -42,7 +42,7 @@ void Init_MSXTerminal (void) {
     IAP_Initialization();
     ClearScreen();
 
-    GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);  //  7 - 0111
+    GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
     GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
     GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
     GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
@@ -72,7 +72,7 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, " v2.1.6   RISKY MSX ");
+    appendString (&scb, " v2.1.7   RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -98,11 +98,6 @@ void PrintMainMenu (int page) {
 
     MoveCursor (23, 0);
     appendString (&scb, " ARROWS,RETURN,ESC,1-MAPPER 9");
-
-    // Show cursor
-    // append (&scb, 0x1B);
-    // append (&scb, 0x79);
-    // append (&scb, 0x35);
 
 
     MoveCursor (1, 1);

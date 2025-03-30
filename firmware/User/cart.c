@@ -263,7 +263,7 @@ CircularBuffer *sbuf;
 CircularBuffer *ibuf;
 
 // Config Cart emulation hardware.
-void Init_Cart (uint8_t CartEmulation) {
+void Init_Cart() {
 
     state_pointer = &state;
     cartpnt = (uint8_t *)&__cart_section_start;
@@ -282,6 +282,8 @@ void Init_Cart (uint8_t CartEmulation) {
     if (value != 1) {
         type = MSXTERMINAL;
     }
+    *rampnt = 0;
+
 
     state_pointer->BusOn = 0x33333333;
     state_pointer->BusOff = 0x44444444;
@@ -577,7 +579,17 @@ void Run16kASCII (void) {
 
     if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
         GPIOD->CFGLR = state_pointer->BusOn;
-        GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[((address >> 12) & 0x8)] + address);
+
+        if (address < 0x8000) {
+            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[0] + address);
+        } else {
+
+            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[8] + address);
+        }
+
+        // GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[((address >> 12) & 0x8)] + address);
+
+
         EXTI->INTFR = state_pointer->IRQLine3;
         while ((GPIOB->INDR & 0x0008) == 0) { };
         GPIOD->CFGLR = state_pointer->BusOff;
@@ -590,19 +602,21 @@ void Run16kASCII (void) {
         return;
 
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+    uint32_t Bank0 = (WriteData << 14) - 0x4000;
+    uint32_t Bank8 = (WriteData << 14) - 0x8000;
 
     while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
             {
                 switch (address) {
                 case 0x6000:
-                    state_pointer->bankOffsets[0] = (WriteData << 14) - 0x4000;
+                    state_pointer->bankOffsets[0] = Bank0;
                     return;
                     break;
 
                 case 0x7000:
                 case 0x77FF:
-                    state_pointer->bankOffsets[8] = (WriteData << 14) - 0x8000;
+                    state_pointer->bankOffsets[8] = Bank8;
                     return;
                     break;
 
