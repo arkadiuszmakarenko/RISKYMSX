@@ -22,7 +22,7 @@ extern unsigned int __cart_section_start;
 extern uint16_t __cfg_section_start;
 
 
-void Init_Cart (uint8_t CartEmulation);
+void Init_Cart();
 void RunCart16k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunCart32k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunCart48k (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));

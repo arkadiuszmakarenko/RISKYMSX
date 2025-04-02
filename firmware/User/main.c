@@ -15,7 +15,6 @@ int main (void) {
     Delay_Init();
     GPIO_Config();
 
-    // Check for MSX reset early
     if (!GPIO_ReadInputDataBit (GPIOC, GPIO_Pin_6)) {
         PFIC->SCTLR |= (1 << 31);
     }
@@ -26,7 +25,7 @@ int main (void) {
         SetSplit();
     }
 
-    Init_Cart (0);
+    Init_Cart();
 
     if (type == MSXTERMINAL) {
         Init_MSXTerminal();
@@ -35,6 +34,7 @@ int main (void) {
     while (1) {
         // Check for MSX reset
         if (!GPIO_ReadInputDataBit (GPIOC, GPIO_Pin_6)) {
+            Delay_Ms (50);
             PFIC->SCTLR |= (1 << 31);
         }
         if (type == MSXTERMINAL) {
