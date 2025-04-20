@@ -58,7 +58,7 @@ You need WCHISPTool_CMD from https://wch-ic.com/ website.
 Install driver by going to Linux/driver and running
 `sudo make install`
 
-#### USB A - USB A Cable (Currently this is not confirmed as working)
+#### USB A - USB A Cable 
  * Copy RISKYMSX.INI file from repository upgrade folder
  * Close jumper B0.
  * Connect RISKY MSX to PC using USB A to USB A cable or serial.
