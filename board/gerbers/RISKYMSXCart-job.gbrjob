@@ -3,9 +3,9 @@
     "GenerationSoftware": {
       "Vendor": "KiCad",
       "Application": "Pcbnew",
-      "Version": "8.0.6"
+      "Version": "9.0.0"
     },
-    "CreationDate": "2025-02-12T20:12:07+00:00"
+    "CreationDate": "2025-04-20T21:07:24+01:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
@@ -46,12 +46,12 @@
     },
     {
       "Path": "RISKYMSXCart-In1_Cu.gbr",
-      "FileFunction": "Copper,L2,Inr",
+      "FileFunction": "Copper,L5,Inr",
       "FilePolarity": "Positive"
     },
     {
       "Path": "RISKYMSXCart-In2_Cu.gbr",
-      "FileFunction": "Copper,L3,Inr",
+      "FileFunction": "Copper,L7,Inr",
       "FilePolarity": "Positive"
     },
     {

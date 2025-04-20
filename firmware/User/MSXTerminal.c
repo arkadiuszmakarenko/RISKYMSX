@@ -30,6 +30,12 @@ void Init_MSXTerminal (void) {
     initBuffer (&scb);
     initMiniBuffer (&icb);
 
+    if (GPIO_ReadInputDataBit (GPIOA, GPIO_Pin_10) == 1) {
+        ShortNames = 1;
+    } else {
+        ShortNames = 0;
+    }
+
     while (enableTerminal == 0) { };
 
     menu.Filename = (uint8_t *)malloc (64 * sizeof (uint8_t));
@@ -46,6 +52,9 @@ void Init_MSXTerminal (void) {
     GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
     GPIO_WriteBit (GPIOA, GPIO_Pin_2, Bit_RESET);
     GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+
+    GPIO_WriteBit (GPIOA, GPIO_Pin_8, Bit_RESET);
+
     appendString (&scb, "Insert USB.");
     while (CHRV3DiskConnect() != ERR_USB_DISCON) { };
     while (MountDrive() == 0) { };
@@ -72,7 +81,7 @@ void PrintMainMenu (int page) {
     menu.FileIndex = 0;
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
     ClearScreen();
-    appendString (&scb, " v2.1.7   RISKY MSX ");
+    appendString (&scb, " v2.1.8   RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -227,6 +236,7 @@ void ProcessMSXTerminal (void) {
                 if (isFile (menu.Filename)) {
                     PrintMapperMenu();
                 } else {
+                    menu.FileIndexPage = 1;
                     ClearScreen();
                     handle_path ((char *)menu.Filename);
                     strcat ((char *)menu.Filename, "/*");
@@ -364,6 +374,7 @@ void CursorDown() {
 void Reset() {
 
     append (&scb, 0x03);
+    GPIO_WriteBit (GPIOA, GPIO_Pin_8, Bit_SET);
 }
 
 void PrintMapperType (CartType type) {

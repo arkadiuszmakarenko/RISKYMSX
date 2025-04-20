@@ -11583,8 +11583,8 @@
 			(justify left bottom)
 		)
 	)
-	(gr_text "Rev.2"
-		(at 165.8 97.05 0)
+	(gr_text "Rev.2.1"
+		(at 165.3 97.025 0)
 		(layer "F.SilkS")
 		(uuid "9fce61b9-758f-4fd5-a098-b0ff5d711a7a")
 		(effects
