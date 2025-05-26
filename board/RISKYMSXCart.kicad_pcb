@@ -3947,7 +3947,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "R"
+		(property "Value" "10K"
 			(at 0 -1.43 0)
 			(layer "B.Fab")
 			(uuid "5c77c7bb-1789-4eaf-ba4d-dec34c3abbef")
@@ -4431,7 +4431,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "2.2k"
+		(property "Value" "220"
 			(at -0.1 -4.2 0)
 			(layer "B.Fab")
 			(hide yes)
@@ -4626,7 +4626,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "1nF"
 			(at 0 -1.43 180)
 			(layer "B.Fab")
 			(uuid "7550ab82-5de8-45d3-a374-668395e78899")
@@ -4832,7 +4832,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0 -1.43 90)
 			(layer "B.Fab")
 			(uuid "dbc6a6fe-9915-4174-adaa-d0cce9d6c48a")
@@ -5216,7 +5216,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "1uF"
 			(at 0 -1.43 180)
 			(layer "B.Fab")
 			(uuid "9cfa8424-c322-4c6c-9475-44c138620e85")
@@ -5422,7 +5422,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0.1625 -1.45 90)
 			(layer "B.Fab")
 			(uuid "096f1b0f-6125-4df0-9880-c95cc5c8ef39")
@@ -5628,7 +5628,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0 -1.43 90)
 			(layer "B.Fab")
 			(uuid "a98f9d75-b3ae-4563-8306-9ac9b64cb6ec")
@@ -6012,7 +6012,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0 -1.43 0)
 			(layer "B.Fab")
 			(uuid "9952e737-cb79-45f8-9644-13591a63f27b")
@@ -6218,7 +6218,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "0.1μF"
+		(property "Value" "100nF"
 			(at 0.0375 -1.525 90)
 			(layer "B.Fab")
 			(hide yes)
@@ -6439,7 +6439,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0 -1.85 0)
 			(layer "B.Fab")
 			(uuid "b7fb3e0f-6979-4e13-a4d4-339045198f58")
@@ -6645,7 +6645,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "4.7uF"
 			(at 0 -1.43 180)
 			(layer "B.Fab")
 			(uuid "1e2ace07-5996-4356-b25c-4d0b185b50a7")
@@ -6851,7 +6851,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "10K"
 			(at 0 -1.43 0)
 			(layer "B.Fab")
 			(uuid "da151eeb-5318-4480-aab7-69b273e15cac")
@@ -7057,7 +7057,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 3.3 1.7 0)
 			(layer "B.Fab")
 			(hide yes)
@@ -7253,7 +7253,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at -0.1 1.5 90)
 			(layer "B.Fab")
 			(uuid "c3d0c683-a62d-4de9-a3a9-20d8b62ffa9c")
@@ -7446,7 +7446,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "220"
 			(at -0.635 -1.905 0)
 			(layer "B.Fab")
 			(hide yes)
@@ -7626,7 +7626,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "R"
+		(property "Value" "10K"
 			(at 0 -1.43 180)
 			(layer "B.Fab")
 			(uuid "40addcd8-a9bb-4c4e-a2aa-fbae395da285")
@@ -7832,7 +7832,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "4.7uF"
 			(at 0 -1.43 0)
 			(layer "B.Fab")
 			(uuid "e91e55d2-a416-4580-b1a0-80f517cd936d")
@@ -8038,7 +8038,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "1nF"
 			(at 0 -1.43 90)
 			(layer "B.Fab")
 			(uuid "ff4571b9-1e01-4c62-a585-618ae19022fc")
@@ -8665,7 +8665,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "R"
+		(property "Value" "10K"
 			(at -0.15 -1.6 0)
 			(layer "B.Fab")
 			(uuid "1344a6ff-a76f-418f-a863-2ce04a3aa586")
@@ -8871,7 +8871,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0 -1.43 180)
 			(layer "B.Fab")
 			(uuid "402eb9de-aa78-45b6-95f3-da69c2170ed6")
@@ -9077,7 +9077,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "C"
+		(property "Value" "100nF"
 			(at 0 -1.43 90)
 			(layer "B.Fab")
 			(uuid "32382f1e-b846-429d-aeec-287f0774795a")
@@ -9283,7 +9283,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "Fuse"
+		(property "Value" "0.5A"
 			(at -0.6 -1.85 0)
 			(layer "B.Fab")
 			(hide yes)
@@ -9490,7 +9490,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "R"
+		(property "Value" "10K"
 			(at 0 -1.43 90)
 			(layer "B.Fab")
 			(uuid "37791dfb-8223-412a-8be0-3d3d9d829948")
