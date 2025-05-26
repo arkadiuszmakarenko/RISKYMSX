@@ -3,6 +3,7 @@
 
 #include "ch32v30x_rcc.h"
 #include "utils.h"
+#include "scc.h"
 
 typedef enum CartType {
     ROM16k,

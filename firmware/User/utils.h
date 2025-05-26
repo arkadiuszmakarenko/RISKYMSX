@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 #define BUFFER_SIZE 64  // Ensure this is a power of 2 for bitwise wrapping
 #define BUFFER_MINI_SIZE 16
 
@@ -14,6 +15,12 @@ typedef struct {
     volatile uint32_t head;
     volatile uint32_t tail;
 } CircularBuffer;
+
+typedef struct {
+    char name[255];
+    uint8_t isDir;
+    uint32_t size_kb;
+} FileEntry;
 
 void initBuffer (CircularBuffer *cb);
 void initMiniBuffer (CircularBuffer *cb);
@@ -26,6 +33,9 @@ int isFull (CircularBuffer *cb);
 
 int strToInt (const char *str);
 void intToString (int num, char *str);
+
+int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page);
+void CombinePath (char *dest, const char *folder, const char *filename);
 
 
 void handle_path (char *str);

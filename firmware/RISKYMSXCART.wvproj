@@ -123,6 +123,11 @@
 				"parentLogicPath": "User",
 				"type": "file",
 				"name": "cartASM.S"
+			},
+			{
+				"parentLogicPath": "User",
+				"type": "folder",
+				"name": "Host_IAP"
 			}
 		],
 		"projectName": "RISKYMSXCART",
@@ -250,8 +255,8 @@
 							"${project}/User",
 							"${project}/Peripheral/inc",
 							"${project}/Udisk_Lib",
-							"${project}/User/Host_IAP",
-							"${project}/User/USB_Host"
+							"${project}/User/USB_Host",
+							"${project}/User/FATFS"
 						],
 						"include_system_paths": [],
 						"include_files": []
@@ -325,12 +330,8 @@
 						"omit_all_symbol_information": false
 					},
 					"libraries": {
-						"libraries": [
-							"RV3UFI"
-						],
-						"library_search_path": [
-							"${project}/Udisk_Lib"
-						]
+						"libraries": [],
+						"library_search_path": []
 					},
 					"miscellaneous": {
 						"picolibc": "disabled",
@@ -363,12 +364,8 @@
 						"omit_all_symbol_information": false
 					},
 					"libraries": {
-						"libraries": [
-							"RV3UFI"
-						],
-						"library_search_path": [
-							"${project}/Udisk_Lib"
-						]
+						"libraries": [],
+						"library_search_path": []
 					},
 					"miscellaneous": {
 						"picolibc": "disabled",
@@ -723,7 +720,7 @@
 		"address": "0x08000000",
 		"target_path": "/home/makaron/Repo/RISKYMSX/firmware/obj/RISKYMSXCART.hex",
 		"clkSpeed": "High",
-		"debug_interface_mode": "",
+		"debug_interface_mode": "1-wire serial",
 		"erase": true,
 		"program": true,
 		"verify": true,

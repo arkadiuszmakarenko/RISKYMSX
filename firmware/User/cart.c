@@ -1,6 +1,6 @@
 #include "cart.h"
-#include "scc.h"
-#include "MSXTerminal.h"
+
+
 // GPIOE Pins    0 - 16      Address
 // GPIOD Pins    0 - 8       Data
 

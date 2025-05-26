@@ -1,6 +1,11 @@
 #include "utils.h"
+#include "ff.h"
+#include "MSXTerminal.h"
+
 #pragma GCC push_options
 #pragma GCC optimize("Ofast")
+
+extern CircularBuffer scb;
 
 void initBuffer (CircularBuffer *cb) {
     cb->buffer = (uint32_t *)malloc (BUFFER_SIZE * sizeof (uint32_t));
@@ -85,7 +90,7 @@ void intToString (int num, char *str) {
     }
 
     // Null-terminate the string
-    str[i] = '\0';
+    // str[i] = '\0';
 
     // Reverse the string
     int start = 0;
@@ -142,6 +147,67 @@ void handle_path (char *str) {
             }
         }
     }
+}
+
+int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page) {
+
+
+    DIR dir;
+    FILINFO fno;
+    int firstItem = (page - 1) * 20;
+    int endItem = page * 20;
+    int size = 0;
+    int idx = 0;
+    FRESULT fres;
+
+    // Mount the filesystem (assume drive number 0)
+    FATFS fs;
+    fres = f_mount (&fs, "", 1);
+    if (fres != FR_OK) {
+        appendString (&scb, "Mount failed.");
+        NewLine();
+        return 0;
+    }
+
+    fres = f_opendir (&dir, (char *)folder);
+    if (fres != FR_OK) {
+        appendString (&scb, "OPEN FOLDER FAILED:");
+        NewLine();
+
+        return 0;
+    }
+
+
+    // Collect up to 20 entries for this page
+    while (size < 20) {
+        fres = f_readdir (&dir, &fno);
+        if (fres != FR_OK || fno.fname[0] == 0) {
+            break;
+        }
+
+        strncpy ((char *)FileArray[size]->name, fno.fname, 255);
+
+        if (fno.fattrib & AM_DIR) {
+            FileArray[size]->isDir = 1;
+            FileArray[size]->size_kb = 0;
+        } else {
+            FileArray[size]->isDir = 0;
+            FileArray[size]->size_kb = fno.fsize;
+        }
+
+        size++;
+    }
+    f_closedir (&dir);
+    return size;
+}
+
+void CombinePath (char *dest, const char *folder, const char *filename) {
+    strcpy (dest, folder);
+    // Add slash if needed (but not for root "/")
+    if (folder[0] != '\0' && folder[strlen (folder) - 1] != '/' && strcmp (folder, "/") != 0) {
+        strcat (dest, "/");
+    }
+    strcat (dest, filename);
 }
 
 #pragma GCC pop_options
