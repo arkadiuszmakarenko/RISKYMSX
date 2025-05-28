@@ -18,7 +18,6 @@ int PointerX = 1;
 int PointerY = 1;
 
 void Init_MSXTerminal (void) {
-
     initBuffer (&scb);
     initMiniBuffer (&icb);
 
@@ -32,7 +31,6 @@ void Init_MSXTerminal (void) {
         menu.FileArray[i] = (FileEntry *)malloc (sizeof (FileEntry));
     }
     ClearScreen();
-
 
     GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
     GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
@@ -447,7 +445,6 @@ void ProcessMSXTerminal (void) {
                 appendString (&scb, " Rebooting ...");
                 Reset();
             }
-
             break;
 
         default:
@@ -469,7 +466,6 @@ void MoveCursor (int x, int y) {
 }
 
 void MovePointer (int x, int y) {
-
     append (&scb, 0x04);
     append (&scb, x * 8);
     append (&scb, y * 8);
@@ -488,7 +484,6 @@ void CursorUp() {
 }
 
 void CursorDown() {
-
     append (&scb, 0x1B);
     append (&scb, 0x42);
     PointerY++;
@@ -496,7 +491,6 @@ void CursorDown() {
 }
 
 void Reset() {
-
     append (&scb, 0x03);
     GPIO_WriteBit (GPIOA, GPIO_Pin_8, Bit_SET);
 }
