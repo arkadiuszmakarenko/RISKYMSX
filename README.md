@@ -13,8 +13,20 @@ The following people contributed to this project and supported me with technical
 Testing team:
 * PhilC
 * Higgy
+* ahmsx
+
   
 Thank you very much for your support.
+
+Confirmed working on following MSXs:
+* Toshiba HX-10
+* Sony HB-101P
+* Sony HB-501F
+* Philips VG8235/00
+* Panasonic FS-A1WSX
+* Omega Home Computer
+* Tides Rider
+* TFMSX Rev 1, Rev 2
 
 
 ![RISKYMSXCart](https://github.com/user-attachments/assets/93ff6b32-1f0f-49db-b7b6-2c4e8e2ec17c)
