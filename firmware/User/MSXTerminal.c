@@ -50,12 +50,12 @@ void Init_MSXTerminal (void) {
 
 
     // Mount the filesystem
-    fres = f_mount (&fs, "", 1);
-    if (fres != FR_OK) {
-        printf ("f_mount failed: %d\r\n", fres);
-        while (1)
-            ;
-    }
+    do {
+        fres = f_mount (&fs, "", 1);
+        if (fres != FR_OK) {
+            Delay_Ms (100);
+        }
+    } while (fres != FR_OK);
     // auto program
     ProgramCart (ROM16k, "CART.R16", "/");
     ProgramCart (ROM32k, "CART.R32", "/");
@@ -74,13 +74,17 @@ void Init_MSXTerminal (void) {
 }
 
 void PrintMainMenu (int page) {
+    uint32_t sizeAdjusted = 0;
+    uint8_t FileNameSize[5] = {0x20, 0x20, 0x20, 0x20, 0x20};
+
+    ClearScreen();
     ResetPointer();
     menu.pageName = MAIN;
     menu.FileIndex = 0;
     ClearScreen();
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
 
-    appendString (&scb, " v2.1.8   RISKY MSX ");
+    appendString (&scb, " v3.0     RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -89,23 +93,35 @@ void PrintMainMenu (int page) {
 
     for (int i = 0; i < menu.FileIndexSize; i++) {
         MoveCursor (i + 1, 2);
+        // Print filename, pad with 0x20 up to 25 chars
+        for (int x = 0; x < 25; x++) {
+            char c = menu.FileArray[i]->name[x];
+            if (c == 0x00) {
+                // Pad the rest with 0x20
+                for (; x < 25; x++) {
+                    append (&scb, 0x20);
+                }
+                break;
+            } else {
+                append (&scb, c);
+            }
+        }
+
         if (menu.FileArray[i]->isDir) {
             appendString (&scb, "<DIR> ");
         } else {
-            uint32_t sizeAdjusted = 0;
-            uint8_t FileNameSize[5] = {0x20, 0x20, 0x20, 0x20, 0x20};
             uint32_t FileSize = menu.FileArray[i]->size_kb;
-            if (FileSize >= 1073741824) {  // 1 GB = 1073741824 bytes
+            if (FileSize >= 1073741824) {
                 sizeAdjusted = FileSize / 1073741824;
                 intToString (sizeAdjusted, (char *)FileNameSize);
-                FileNameSize[3] = 0x47;        // G
-                FileNameSize[4] = 0x42;        // B
-            } else if (FileSize >= 1048576) {  // 1 MB = 1048576 bytes
+                FileNameSize[3] = 0x47;  // G
+                FileNameSize[4] = 0x42;  // B
+            } else if (FileSize >= 1048576) {
                 sizeAdjusted = FileSize / 1048576;
                 intToString (sizeAdjusted, (char *)FileNameSize);
-                FileNameSize[3] = 0x4D;     // M
-                FileNameSize[4] = 0x42;     // B
-            } else if (FileSize >= 1024) {  // 1 KB = 1024 bytes
+                FileNameSize[3] = 0x4D;  // M
+                FileNameSize[4] = 0x42;  // B
+            } else if (FileSize >= 1024) {
                 sizeAdjusted = FileSize / 1024;
                 intToString (sizeAdjusted, (char *)FileNameSize);
                 FileNameSize[3] = 0x4B;  // K
@@ -114,17 +130,12 @@ void PrintMainMenu (int page) {
                 intToString (FileSize, (char *)FileNameSize);
                 FileNameSize[4] = 0x42;  // B
             }
-
+            // Print 5-char size
             for (int x = 0; x < 5; x++) {
                 append (&scb, FileNameSize[x]);
             }
             append (&scb, 0x20);
         }
-
-
-        appendString (&scb, menu.FileArray[i]->name);
-
-
         NewLine();
     }
 
@@ -165,7 +176,7 @@ void PrintMapperMenu() {
     MoveCursor (21, 0);
 
     uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
-    strcpy ((char *)location, (char *)menu.Filename);
+    strcpy ((char *)location, (char *)menu.folder);
     append (&scb, 0x20);
     appendString (&scb, (char *)location);
     free (location);
@@ -224,12 +235,21 @@ void ProcessMSXTerminal (void) {
     uint32_t key;
 
     if (popmini (&icb, &key) == 0) {
-        if (key == 0x1B) {
+        if (key == 0x1B) {  // handle ESC
 
             ClearScreen();
-            // appendString (&scb, "Insert USB.");
+            appendString (&scb, "Insert USB.");
             menu.FileIndexPage = 1;
             strcpy ((char *)menu.folder, "/");
+            FRESULT fres;
+            FATFS fs;
+            do {
+                fres = f_mount (&fs, "", 1);
+                if (fres != FR_OK) {
+                    Delay_Ms (100);
+                }
+            } while (fres != FR_OK);
+
             PrintMainMenu (menu.FileIndexPage);
         }
 
@@ -343,7 +363,7 @@ void ProcessMSXTerminal (void) {
             if (key == 0x0D) {
                 ClearScreen();
                 MovePointer (0xFF, 0xFF);
-                //  MapperCode_Update (menu.CartTypeIndex);
+                MapperCode_Update (menu.CartTypeIndex);
                 appendString (&scb, " Rebooting ...");
                 Reset();
             }

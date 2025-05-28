@@ -16,6 +16,8 @@
 #define DEV_MMC 1 /* Example: Map MMC/SD card to physical drive 1 */
 #define DEV_USB 2 /* Example: Map USB MSD to physical drive 2 */
 
+static uint32_t block_count = 0, block_size = 0;
+
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
 /*-----------------------------------------------------------------------*/
@@ -38,9 +40,11 @@ DSTATUS disk_initialize (
     BYTE pdrv /* Physical drive nmuber to identify the drive */
 ) {
     uint8_t res = USBH_PreDeal();
-    if (res == 0 || res == 0xFF)
+    if (res == 0 || res == 0xFF) {
+        if (usb_scsi_read_capacity (&block_count, &block_size) != 0 || block_size != 512)
+            return STA_NOINIT;
         return 0;  // Disk OK
-    else
+    } else
         return STA_NOINIT;
 }
 
@@ -54,12 +58,6 @@ DRESULT disk_read (
     LBA_t sector, /* Start sector in LBA */
     UINT count    /* Number of sectors to read */
 ) {
-    //  if (pdrv != DEV_USB)
-    //     return RES_NOTRDY;
-
-    uint32_t block_count = 0, block_size = 0;
-    if (usb_scsi_read_capacity (&block_count, &block_size) != 0 || block_size != 512)
-        return RES_ERROR;
 
     for (UINT i = 0; i < count; i++) {
         if (usb_scsi_read_sector (sector + i, buff + i * 512, block_size) != 0)

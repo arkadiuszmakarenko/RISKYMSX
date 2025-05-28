@@ -32,27 +32,17 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     FRESULT fres;
     UINT bytesRead;
     DWORD fileSize;
-
-    appendString (&scb, "START");
-    NewLine();
-    appendString (&scb, (char *)Folder);
-    NewLine();
-    appendString (&scb, (char *)Filename);
-
     // Mount the filesystem (assume drive number 0)
     FATFS fs;
-    fres = f_mount (&fs, "", 1);
-    if (fres != FR_OK) {
-        appendString (&scb, "Mount failed.");
-        NewLine();
-        return;
-    }
+    do {
+        fres = f_mount (&fs, "", 1);
+        if (fres != FR_OK) {
+            Delay_Ms (100);
+        }
+    } while (fres != FR_OK);
 
     char fullPath[256];
     CombinePath (fullPath, Folder, Filename);
-    appendString (&scb, (char *)fullPath);
-    NewLine();
-
     // Open the file
     fres = f_open (&file, fullPath, FA_READ);
     if (fres != FR_OK) {
@@ -85,6 +75,10 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     IAP_WriteIn_Length = 0;
     IAP_WriteIn_Count = 0;
 
+    // Progress feedback variables
+
+    uint8_t progress25 = 0, progress50 = 0, progress75 = 0;
+
     while (totalcount) {
         // Read in chunks, up to DEF_MAX_IAP_BUFFER_LEN or less if at end
         if (totalcount > DEF_MAX_IAP_BUFFER_LEN) {
@@ -103,6 +97,32 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
         mStopIfError (ret);
         IAP_Load_Addr_Offset += bytesRead;
         IAP_WriteIn_Count += bytesRead;
+
+        // Progress feedback
+        if (!progress25 && IAP_WriteIn_Count >= fileSize / 4) {
+            MoveCursor (9, 1);
+            appendString (&scb, "            ");
+            MoveCursor (9, 1);
+            appendString (&scb, "Progress: 25%");
+            NewLine();
+            progress25 = 1;
+        }
+        if (!progress50 && IAP_WriteIn_Count >= fileSize / 2) {
+            MoveCursor (9, 1);
+            appendString (&scb, "            ");
+            MoveCursor (9, 1);
+            appendString (&scb, "Progress: 50%");
+            NewLine();
+            progress50 = 1;
+        }
+        if (!progress75 && IAP_WriteIn_Count >= (fileSize * 3) / 4) {
+            MoveCursor (9, 1);
+            appendString (&scb, "            ");
+            MoveCursor (9, 1);
+            appendString (&scb, "Progress: 75%");
+            NewLine();
+            progress75 = 1;
+        }
     }
     f_close (&file);
     // Check actual write length and file length

@@ -15,8 +15,8 @@ int main (void) {
     GPIO_Config();
 
     //  USART_Printf_Init (115200);
-    printf (" SystemClk:\t%d\r\n", SystemCoreClock);
-    printf (" ChipID:\t%08x\r\n", DBGMCU_GetCHIPID());
+    // printf (" SystemClk:\t%d\r\n", SystemCoreClock);
+    // printf (" ChipID:\t%08x\r\n", DBGMCU_GetCHIPID());
 
 
     // if (!GPIO_ReadInputDataBit (GPIOC, GPIO_Pin_6)) {

@@ -47,13 +47,13 @@ void USB_Initialization (void) {
 
 
     /* USB Host Initialization */
-    printf ("USB Host & UDisk Lib Initialization. \r\n");
+    // printf ("USB Host & UDisk Lib Initialization. \r\n");
     /* Initialize USBFS host */
-    printf ("USBFS Host Init\r\n");
+    // printf ("USBFS Host Init\r\n");
     USBFS_RCC_Init();
-    printf ("Init READY\r\n");
+    // printf ("Init READY\r\n");
     USBFS_Host_Init (ENABLE);
-    printf ("Host Init enable READY\r\n");
+    // printf ("Host Init enable READY\r\n");
     memset (&RootHubDev[DEF_USB_PORT_FS].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));
     memset (&HostCtl[DEF_USB_PORT_FS].InterfaceNum, 0, sizeof (struct __HOST_CTL));
 }
@@ -76,7 +76,7 @@ uint8_t USBH_EnumRootDevice (uint8_t usb_port) {
     uint8_t msc_interface_found = 0;
     uint8_t msc_in_ep_found = 0, msc_out_ep_found = 0;
 
-    printf ("[MSC] Enum Start\r\n");
+    // printf ("[MSC] Enum Start\r\n");
 
     enum_cnt = 0;
 ENUM_START:
@@ -99,10 +99,10 @@ ENUM_START:
     }
     if (i) {
         if (enum_cnt <= 5) {
-            printf ("[MSC] Device not attached, retrying...\r\n");
+            // printf ("[MSC] Device not attached, retrying...\r\n");
             goto ENUM_START;
         }
-        printf ("[MSC] Device not attached after retries.\r\n");
+        // printf ("[MSC] Device not attached after retries.\r\n");
         return ERR_USB_DISCON;
     }
 
@@ -110,18 +110,18 @@ ENUM_START:
     USBFSH_SetSelfSpeed (RootHubDev[usb_port].bSpeed);
 
     /* Get USB device device descriptor */
-    printf ("[MSC] Get DevDesc: ");
+    // printf ("[MSC] Get DevDesc: ");
     s = USBFSH_GetDeviceDescr (&RootHubDev[usb_port].bEp0MaxPks, DevDesc_Buf);
     if (s == ERR_SUCCESS) {
-        printf ("OK\r\n");
+        //  printf ("OK\r\n");
 #if DEF_DEBUG_PRINTF
         for (i = 0; i < 18; i++) {
-            printf ("%02x ", DevDesc_Buf[i]);
+            // printf ("%02x ", DevDesc_Buf[i]);
         }
-        printf ("\n");
+        // printf ("\n");
 #endif
     } else {
-        printf ("Err(%02x)\n", s);
+        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -129,13 +129,13 @@ ENUM_START:
     }
 
     /* Set the USB device address */
-    printf ("[MSC] Set DevAddr: ");
+    // printf ("[MSC] Set DevAddr: ");
     RootHubDev[usb_port].bAddress = (uint8_t)(DEF_USB_PORT_FS + USB_DEVICE_ADDR);
     s = USBFSH_SetUsbAddress (RootHubDev[usb_port].bEp0MaxPks, RootHubDev[usb_port].bAddress);
     if (s == ERR_SUCCESS) {
-        printf ("OK\n");
+        // printf ("OK\n");
     } else {
-        printf ("Err(%02x)\n", s);
+        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -144,19 +144,19 @@ ENUM_START:
     Delay_Ms (5);
 
     /* Get the USB device configuration descriptor */
-    printf ("[MSC] Get CfgDesc: ");
+    // printf ("[MSC] Get CfgDesc: ");
     s = USBFSH_GetConfigDescr (RootHubDev[usb_port].bEp0MaxPks, Com_Buffer, DEF_COM_BUF_LEN, &len);
     if (s == ERR_SUCCESS) {
         cfg_val = ((PUSB_CFG_DESCR)Com_Buffer)->bConfigurationValue;
-        printf ("OK\r\n");
+        //  printf ("OK\r\n");
 #if DEF_DEBUG_PRINTF
         for (i = 0; i < len; i++) {
-            printf ("%02x ", Com_Buffer[i]);
+            //  printf ("%02x ", Com_Buffer[i]);
         }
-        printf ("\n");
+        // printf ("\n");
 #endif
     } else {
-        printf ("Err(%02x)\n", s);
+        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -164,11 +164,11 @@ ENUM_START:
     }
 
     /* Set USB device configuration value */
-    printf ("[MSC] Set Cfg: ");
+    // printf ("[MSC] Set Cfg: ");
     s = USBFSH_SetUsbConfig (RootHubDev[usb_port].bEp0MaxPks, cfg_val);
     if (s == ERR_SUCCESS) {
-        printf ("OK\r\n");
-        // Parse configuration descriptor for MSC interface and endpoints
+        // printf ("OK\r\n");
+        //  Parse configuration descriptor for MSC interface and endpoints
         uint8_t *p = Com_Buffer;
         uint8_t *end = Com_Buffer + len;
         usb_in_ep = 0;
@@ -184,12 +184,12 @@ ENUM_START:
                 interface_class = p[5];
                 interface_subclass = p[6];
                 interface_protocol = p[7];
-                printf ("[MSC] Interface: class=0x%02X subclass=0x%02X protocol=0x%02X\r\n",
-                        interface_class, interface_subclass, interface_protocol);
+                // printf ("[MSC] Interface: class=0x%02X subclass=0x%02X protocol=0x%02X\r\n",
+                //    interface_class, interface_subclass, interface_protocol);
                 // Check for MSC interface: class 0x08, subclass 0x06, protocol 0x50
                 if (interface_class == 0x08 && interface_subclass == 0x06 && interface_protocol == 0x50) {
                     msc_interface_found = 1;
-                    printf ("[MSC] Mass Storage Class interface found.\r\n");
+                    //  printf ("[MSC] Mass Storage Class interface found.\r\n");
                 }
             }
             if (p[1] == 0x05 && msc_interface_found) {  // ENDPOINT descriptor type
@@ -200,12 +200,12 @@ ENUM_START:
                         usb_in_ep = ep_addr & 0x0F;  // IN endpoint
                         in_tog = 0;
                         msc_in_ep_found = 1;
-                        printf ("[MSC] Found BULK IN endpoint: 0x%02X\r\n", ep_addr);
+                        // printf ("[MSC] Found BULK IN endpoint: 0x%02X\r\n", ep_addr);
                     } else {
                         usb_out_ep = ep_addr & 0x0F;  // OUT endpoint
                         out_tog = 0;
                         msc_out_ep_found = 1;
-                        printf ("[MSC] Found BULK OUT endpoint: 0x%02X\r\n", ep_addr);
+                        // printf ("[MSC] Found BULK OUT endpoint: 0x%02X\r\n", ep_addr);
                     }
                 }
             }
@@ -213,17 +213,17 @@ ENUM_START:
                 break;  // Prevent infinite loop on malformed descriptors
             p += p[0];  // Move to next descriptor
         }
-        printf ("[MSC] usb_in_ep=%u, usb_out_ep=%u\r\n", usb_in_ep, usb_out_ep);
+        // printf ("[MSC] usb_in_ep=%u, usb_out_ep=%u\r\n", usb_in_ep, usb_out_ep);
 
         // Final check: is this a valid MSC device?
         if (!msc_interface_found || !msc_in_ep_found || !msc_out_ep_found) {
-            printf ("[MSC] ERROR: Device is not a valid USB MSC device or missing endpoints.\r\n");
+            //  printf ("[MSC] ERROR: Device is not a valid USB MSC device or missing endpoints.\r\n");
             return ERR_USB_UNSUPPORT;
         } else {
-            printf ("[MSC] USB MSC device enumeration complete and endpoints assigned.\r\n");
+            //  printf ("[MSC] USB MSC device enumeration complete and endpoints assigned.\r\n");
         }
     } else {
-        printf ("Err(%02x)\n", s);
+        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -252,18 +252,18 @@ uint8_t USBH_PreDeal (void) {
     if (ret == ROOT_DEV_CONNECTED) {
         // Only enumerate if not already enumerated
         if (RootHubDev[usb_port].bStatus != ROOT_DEV_SUCCESS) {
-            printf ("USB Dev In.\n");
+            // printf ("USB Dev In.\n");
             RootHubDev[usb_port].bStatus = ROOT_DEV_CONNECTED;
             RootHubDev[usb_port].DeviceIndex = usb_port * DEF_ONE_USB_SUP_DEV_TOTAL;
 
             // Enumerate root device
             ret = USBH_EnumRootDevice (usb_port);
             if (ret == ERR_SUCCESS) {
-                printf ("USB Port %02x Device Enumeration Succeed\r\n", usb_port);
+                // printf ("USB Port %02x Device Enumeration Succeed\r\n", usb_port);
                 RootHubDev[usb_port].bStatus = ROOT_DEV_SUCCESS;
                 return DEF_SUCCESS;
             } else {
-                printf ("USB Port %02x Device Enumeration ERR %02x.\r\n", usb_port, ret);
+                // printf ("USB Port %02x Device Enumeration ERR %02x.\r\n", usb_port, ret);
                 RootHubDev[usb_port].bStatus = ROOT_DEV_FAILED;
                 return DEF_ERR_ENUM;
             }
@@ -272,8 +272,8 @@ uint8_t USBH_PreDeal (void) {
             return DEF_SUCCESS;
         }
     } else if (ret == ROOT_DEV_DISCONNECT) {
-        printf ("USB Port %02x Device Out.\r\n", usb_port);
-        // Clear parameters
+        // printf ("USB Port %02x Device Out.\r\n", usb_port);
+        //  Clear parameters
         index = RootHubDev[usb_port].DeviceIndex;
         memset (&RootHubDev[usb_port].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));
         memset (&HostCtl[index].InterfaceNum, 0, sizeof (struct __HOST_CTL));
@@ -282,65 +282,6 @@ uint8_t USBH_PreDeal (void) {
 
     // No change
     return DEF_DEFAULT;
-}
-
-/**
- * @brief   Test if USB MSC device is attached and responding.
- * @return  0 if OK, nonzero if failed.
- */
-uint8_t USBH_MSC_BasicTest (void) {
-    uint32_t block_count = 0, block_size = 0;
-    uint8_t res;
-
-    printf ("[MSC TEST] Sending TEST UNIT READY...\r\n");
-    res = usb_scsi_test_unit_ready();
-    if (res != 0) {
-        printf ("[MSC TEST] TEST UNIT READY failed! (res=%u)\r\n", res);
-        return 1;
-    }
-    printf ("[MSC TEST] TEST UNIT READY OK.\r\n");
-
-    printf ("[MSC TEST] Sending READ CAPACITY...\r\n");
-    res = usb_scsi_read_capacity (&block_count, &block_size);
-    if (res != 0) {
-        printf ("[MSC TEST] READ CAPACITY failed! (res=%u)\r\n", res);
-        return 2;
-    }
-    printf ("[MSC TEST] READ CAPACITY OK. Block count: %lu, Block size: %lu\r\n", block_count, block_size);
-
-    return 0;
-}
-
-// SCSI TEST UNIT READY
-uint8_t usb_scsi_test_unit_ready (void) {
-    CBW_t cbw;
-    CSW_t csw;
-    uint8_t res;
-
-    memset (&cbw, 0, sizeof (cbw));
-    cbw.dCBWSignature = 0x43425355;
-    cbw.dCBWTag = 0xAABBCCDD;
-    cbw.dCBWDataTransferLength = 0;
-    cbw.bmCBWFlags = 0x80;  // IN
-    cbw.bCBWLUN = 0;
-    cbw.bCBWCBLength = 6;
-    cbw.CBWCB[0] = 0x00;  // TEST UNIT READY
-
-    res = usb_send_cbw (&cbw);
-    if (res != ERR_SUCCESS)
-        return 1;
-
-    if (res == ERR_SUCCESS)
-        printf ("SEND SUCCESS!\r\n");
-
-    res = usb_recv_csw (&csw);
-    if (res != ERR_SUCCESS || csw.bCSWStatus != 0)
-        return 2;
-
-    if (res == ERR_SUCCESS)
-        printf ("RECEIVE SUCCESS!\r\n");
-
-    return 0;
 }
 
 // SCSI READ CAPACITY (returns block count and block size)
@@ -384,17 +325,18 @@ uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size) {
     return 0;
 }
 
-// SCSI: Read a single sector (LBA) into buffer
 uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size) {
     CBW_t cbw;
     CSW_t csw;
     uint8_t res;
-    uint16_t plen = block_size;
+    uint16_t plen;
+    uint32_t bytes_received = 0;
+    uint32_t transfer_len = block_size;
 
     memset (&cbw, 0, sizeof (cbw));
     cbw.dCBWSignature = 0x43425355;
-    cbw.dCBWTag = 0x55667788;
-    cbw.dCBWDataTransferLength = block_size;
+    cbw.dCBWTag = 0xCAFEBABE;
+    cbw.dCBWDataTransferLength = transfer_len;
     cbw.bmCBWFlags = 0x80;  // IN
     cbw.bCBWLUN = 0;
     cbw.bCBWCBLength = 10;
@@ -402,71 +344,57 @@ uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size) {
     cbw.CBWCB[2] = (lba >> 24) & 0xFF;
     cbw.CBWCB[3] = (lba >> 16) & 0xFF;
     cbw.CBWCB[4] = (lba >> 8) & 0xFF;
-    cbw.CBWCB[5] = (lba >> 0) & 0xFF;
-    cbw.CBWCB[7] = 0;
-    cbw.CBWCB[8] = 1;  // Transfer 1 block
+    cbw.CBWCB[5] = (lba)&0xFF;
+    cbw.CBWCB[7] = (1 >> 8) & 0xFF;  // Transfer length: 1 block
+    cbw.CBWCB[8] = (1) & 0xFF;
 
-    // printf ("[usb_scsi_read_sector] Sending CBW for LBA=%lu, block_size=%lu\r\n", lba, block_size);
-    res = usb_send_cbw (&cbw);
+
+    int cbw_send_retries = 0;
+    do {
+        res = usb_send_cbw (&cbw);
+        if (res == ERR_SUCCESS)
+            break;
+        Delay_Ms (1);
+        cbw_send_retries++;
+    } while (cbw_send_retries < 20);
     if (res != ERR_SUCCESS) {
-        printf ("[usb_scsi_read_sector] usb_send_cbw failed: %u\r\n", res);
         return 1;
     }
-    Delay_Ms (2);
-    uint32_t bytes_read = 0;
-    uint16_t chunk;
-    uint8_t *p = buf;
-    while (bytes_read < block_size) {
-        chunk = (block_size - bytes_read > 64) ? 64 : (block_size - bytes_read);
-        plen = chunk;
-        printf ("[usb_scsi_read_sector] Getting endpoint data chunk: %u bytes...\r\n", chunk);
-        res = USBFSH_GetEndpData (usb_in_ep, &in_tog, p, &plen);
-        if (res != ERR_SUCCESS || plen != chunk) {
-            //  printf ("[usb_scsi_read_sector] USBFSH_GetEndpData failed: res=%u plen=%u (expected %u)\r\n", res, plen, chunk);
+
+
+    while (bytes_received < block_size) {
+        plen = block_size - bytes_received;
+        if (plen > 64)
+            plen = 64;  // USB FS bulk max packet size
+        int nak_retries = 0;
+        do {
+            res = USBFSH_GetEndpData (usb_in_ep, &in_tog, buf + bytes_received, &plen);
+            if (res != ERR_SUCCESS) {  // USB_PID_NAK
+                Delay_Ms (1);
+                nak_retries++;
+                if (nak_retries >= 20) {
+                    return 2;
+                }
+            }
+        } while (res != ERR_SUCCESS);
+
+        if (res != ERR_SUCCESS || plen == 0) {
             return 2;
         }
-        p += chunk;
-        bytes_read += chunk;
+        bytes_received += plen;
     }
-    Delay_Ms (2);
-    // printf ("[usb_scsi_read_sector] Receiving CSW...\r\n");
-    res = usb_recv_csw (&csw);
+
+    int csw_retries = 0;
+    do {
+        res = usb_recv_csw (&csw);
+        if (res == ERR_SUCCESS && csw.bCSWStatus == 0)
+            break;
+        Delay_Ms (1);
+        csw_retries++;
+    } while (csw_retries < 20);
     if (res != ERR_SUCCESS || csw.bCSWStatus != 0) {
-        printf ("[usb_scsi_read_sector] usb_recv_csw failed: res=%u bCSWStatus=%u\r\n", res, csw.bCSWStatus);
         return 3;
     }
-    printf ("[usb_scsi_read_sector] Sector read OK.\r\n");
+
     return 0;
-}
-
-// Test: Read a random sector and print its contents
-void USBH_MSC_ReadRandomSectorTest (void) {
-    uint32_t block_count = 0, block_size = 0;
-    uint8_t res;
-    uint32_t lba;
-    uint8_t buf[512];
-    int i;
-
-    printf ("[MSC TEST] Querying capacity...\r\n");
-    res = usb_scsi_read_capacity (&block_count, &block_size);
-    if (res != 0 || block_count == 0 || block_size == 0 || block_size > sizeof (buf)) {
-        printf ("[MSC TEST] Failed to get capacity or block size too large!\r\n");
-        return;
-    }
-    // block_count is last LBA, so valid LBA is 0..block_count
-    lba = 0;
-    printf ("[MSC TEST] Reading sector LBA=%lu (block size=%lu)...\r\n", lba, block_size);
-    memset (buf, 0, sizeof (buf));
-    res = usb_scsi_read_sector (lba, buf, block_size);
-    if (res != 0) {
-        printf ("[MSC TEST] Failed to read sector!\r\n");
-        return;
-    }
-    printf ("[MSC TEST] Sector data (first 512 bytes):\r\n");
-    for (i = 0; i < 512 && i < block_size; i++) {
-        printf ("%02X ", buf[i]);
-        if ((i + 1) % 16 == 0)
-            printf ("\r\n");
-    }
-    printf ("\r\n[MSC TEST] Done.\r\n");
 }

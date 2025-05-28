@@ -90,7 +90,7 @@ void intToString (int num, char *str) {
     }
 
     // Null-terminate the string
-    // str[i] = '\0';
+    str[i] = '\0';
 
     // Reverse the string
     int start = 0;
@@ -150,33 +150,36 @@ void handle_path (char *str) {
 }
 
 int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page) {
-
-
     DIR dir;
     FILINFO fno;
     int firstItem = (page - 1) * 20;
-    int endItem = page * 20;
     int size = 0;
     int idx = 0;
     FRESULT fres;
 
     // Mount the filesystem (assume drive number 0)
     FATFS fs;
-    fres = f_mount (&fs, "", 1);
-    if (fres != FR_OK) {
-        appendString (&scb, "Mount failed.");
-        NewLine();
-        return 0;
-    }
+    do {
+        fres = f_mount (&fs, "", 1);
+        if (fres != FR_OK) {
+            Delay_Ms (100);
+        }
+    } while (fres != FR_OK);
 
     fres = f_opendir (&dir, (char *)folder);
     if (fres != FR_OK) {
-        appendString (&scb, "OPEN FOLDER FAILED:");
-        NewLine();
-
         return 0;
     }
 
+    // Skip entries before firstItem
+    while (idx < firstItem) {
+        fres = f_readdir (&dir, &fno);
+        if (fres != FR_OK || fno.fname[0] == 0) {
+            f_closedir (&dir);
+            return size;
+        }
+        idx++;
+    }
 
     // Collect up to 20 entries for this page
     while (size < 20) {
@@ -184,9 +187,7 @@ int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page) {
         if (fres != FR_OK || fno.fname[0] == 0) {
             break;
         }
-
         strncpy ((char *)FileArray[size]->name, fno.fname, 255);
-
         if (fno.fattrib & AM_DIR) {
             FileArray[size]->isDir = 1;
             FileArray[size]->size_kb = 0;
@@ -194,7 +195,6 @@ int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page) {
             FileArray[size]->isDir = 0;
             FileArray[size]->size_kb = fno.fsize;
         }
-
         size++;
     }
     f_closedir (&dir);
