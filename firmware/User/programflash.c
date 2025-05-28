@@ -26,8 +26,6 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     uint32_t totalcount, t;
     uint16_t ret;
 
-
-    uint8_t *filenamecart = (uint8_t *)malloc (64 * sizeof (uint8_t));
     FIL file;
     FRESULT fres;
     UINT bytesRead;
@@ -75,10 +73,6 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     IAP_WriteIn_Length = 0;
     IAP_WriteIn_Count = 0;
 
-    // Progress feedback variables
-
-    uint8_t progress25 = 0, progress50 = 0, progress75 = 0;
-
     while (totalcount) {
         // Read in chunks, up to DEF_MAX_IAP_BUFFER_LEN or less if at end
         if (totalcount > DEF_MAX_IAP_BUFFER_LEN) {
@@ -98,37 +92,29 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
         IAP_Load_Addr_Offset += bytesRead;
         IAP_WriteIn_Count += bytesRead;
 
-        // Progress feedback
-        if (!progress25 && IAP_WriteIn_Count >= fileSize / 4) {
+        // Progress feedback every 5%
+        static uint8_t last_percent = 0;
+        uint8_t percent = (uint8_t)(((uint64_t)IAP_WriteIn_Count * 100) / fileSize);
+        if (percent > 100)
+            percent = 100;
+        if (percent >= last_percent + 5) {
+            last_percent = percent - (percent % 5);  // Snap to lower multiple of 5
             MoveCursor (9, 1);
             appendString (&scb, "            ");
             MoveCursor (9, 1);
-            appendString (&scb, "Progress: 25%");
+            char msg[20];
+            intToString (last_percent, msg);
+            appendString (&scb, "Progress: ");
+            appendString (&scb, msg);
+            appendString (&scb, "%");
             NewLine();
-            progress25 = 1;
-        }
-        if (!progress50 && IAP_WriteIn_Count >= fileSize / 2) {
-            MoveCursor (9, 1);
-            appendString (&scb, "            ");
-            MoveCursor (9, 1);
-            appendString (&scb, "Progress: 50%");
-            NewLine();
-            progress50 = 1;
-        }
-        if (!progress75 && IAP_WriteIn_Count >= (fileSize * 3) / 4) {
-            MoveCursor (9, 1);
-            appendString (&scb, "            ");
-            MoveCursor (9, 1);
-            appendString (&scb, "Progress: 75%");
-            NewLine();
-            progress75 = 1;
         }
     }
     f_close (&file);
     // Check actual write length and file length
     if (fileSize == IAP_WriteIn_Count) {
-        MapperCode_Write (cartType, File_Length, (char *)filenamecart);
-        free (filenamecart);
+        MapperCode_Write (cartType, File_Length, (char *)Filename);
+
         FLASH_Lock_Fast();
         NewLine();
         appendString (&scb, " Done. Rebooting...");
@@ -454,15 +440,6 @@ void mStopIfError (uint8_t iError) {
     char error[5];
     intToString (iError, error);
     appendString (&scb, error);
-    /* Display the errors */
-    // DUG_\\printf( "Error:%02x\r\n", iError );
-    /* After encountering an error, you should analyze the error code and CHRV3DiskStatus status, for example,
-     * call CHRV3DiskReady to check whether the current USB disk is connected or not,
-     * if the disk is disconnected then wait for the disk to be plugged in again and operate again,
-     * Suggested steps to follow after an error:
-     *     1, call CHRV3DiskReady once, if successful, then continue the operation, such as Open, Read/Write, etc.
-     *     2?If CHRV3DiskReady is not successful, then the operation will be forced to start from the beginning.
-     */
     while (1) { }
 }
 

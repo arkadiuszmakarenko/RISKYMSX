@@ -8,7 +8,7 @@
 #define DEF_FLASH_OPERATION_KEY_CODE_1 0x55AA55AA /* IAP Flash operation Key-code 1 */
 
 /* IAP Load buffer Definitions */
-#define DEF_MAX_IAP_BUFFER_LEN 1024 /* IAP Load buffer size */
+#define DEF_MAX_IAP_BUFFER_LEN 512 /* IAP Load buffer size */
 
 #define DEF_COM_BUF_LEN 255
 

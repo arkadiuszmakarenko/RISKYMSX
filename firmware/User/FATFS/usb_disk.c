@@ -47,13 +47,8 @@ void USB_Initialization (void) {
 
 
     /* USB Host Initialization */
-    // printf ("USB Host & UDisk Lib Initialization. \r\n");
-    /* Initialize USBFS host */
-    // printf ("USBFS Host Init\r\n");
     USBFS_RCC_Init();
-    // printf ("Init READY\r\n");
     USBFS_Host_Init (ENABLE);
-    // printf ("Host Init enable READY\r\n");
     memset (&RootHubDev[DEF_USB_PORT_FS].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));
     memset (&HostCtl[DEF_USB_PORT_FS].InterfaceNum, 0, sizeof (struct __HOST_CTL));
 }
@@ -252,27 +247,23 @@ uint8_t USBH_PreDeal (void) {
     if (ret == ROOT_DEV_CONNECTED) {
         // Only enumerate if not already enumerated
         if (RootHubDev[usb_port].bStatus != ROOT_DEV_SUCCESS) {
-            // printf ("USB Dev In.\n");
             RootHubDev[usb_port].bStatus = ROOT_DEV_CONNECTED;
             RootHubDev[usb_port].DeviceIndex = usb_port * DEF_ONE_USB_SUP_DEV_TOTAL;
 
             // Enumerate root device
             ret = USBH_EnumRootDevice (usb_port);
             if (ret == ERR_SUCCESS) {
-                // printf ("USB Port %02x Device Enumeration Succeed\r\n", usb_port);
                 RootHubDev[usb_port].bStatus = ROOT_DEV_SUCCESS;
                 return DEF_SUCCESS;
             } else {
-                // printf ("USB Port %02x Device Enumeration ERR %02x.\r\n", usb_port, ret);
                 RootHubDev[usb_port].bStatus = ROOT_DEV_FAILED;
                 return DEF_ERR_ENUM;
             }
         } else {
-            // Already enumerated and connected
+
             return DEF_SUCCESS;
         }
     } else if (ret == ROOT_DEV_DISCONNECT) {
-        // printf ("USB Port %02x Device Out.\r\n", usb_port);
         //  Clear parameters
         index = RootHubDev[usb_port].DeviceIndex;
         memset (&RootHubDev[usb_port].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));

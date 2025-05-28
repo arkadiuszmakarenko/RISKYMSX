@@ -37,6 +37,4 @@ void intToString (int num, char *str);
 int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page);
 void CombinePath (char *dest, const char *folder, const char *filename);
 
-
-void handle_path (char *str);
 #endif  // CIRCULAR_BUFFER_H

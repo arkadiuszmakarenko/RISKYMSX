@@ -4,6 +4,7 @@
 #include "ff.h"
 #include "usb_disk.h"
 #include "programflash.h"
+#include "version.h"
 
 
 extern CircularBuffer cb;
@@ -40,15 +41,21 @@ void Init_MSXTerminal (void) {
 
     GPIO_WriteBit (GPIOA, GPIO_Pin_8, Bit_RESET);
 
+    appendString (&scb, " ");
+    appendString (&scb, FIRMWARE_VERSION_STRING);
+    NewLine();
     appendString (&scb, "Insert USB.");
+    NewLine();
 
     USB_Initialization();
+
     while (USBH_PreDeal() != 0) { }
+    appendString (&scb, " USB Enumeration complete.");
+    NewLine();
 
     FATFS fs;
     FRESULT fres;
-
-
+    FILINFO fno;
     // Mount the filesystem
     do {
         fres = f_mount (&fs, "", 1);
@@ -56,17 +63,57 @@ void Init_MSXTerminal (void) {
             Delay_Ms (100);
         }
     } while (fres != FR_OK);
+
     // auto program
-    ProgramCart (ROM16k, "CART.R16", "/");
-    ProgramCart (ROM32k, "CART.R32", "/");
-    ProgramCart (ROM48k, "CART.R48", "/");
-    ProgramCart (KonamiWithoutSCC, "CART.KO4", "/");
-    ProgramCart (KonamiWithSCC, "CART.KO5", "/");
-    ProgramCart (KonamiWithSCCNOSCC, "CART.KD5", "/");
-    ProgramCart (ASCII8k, "CART.A8K", "/");
-    ProgramCart (ASCII16k, "CART.A16", "/");
-    ProgramCart (NEO16, "CART.N16", "/");
-    ProgramCart (NEO8, "CART.N8K", "/");
+    fres = f_stat ("CART.R16", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (ROM16k, "CART.R16", "/");
+    }
+
+    fres = f_stat ("CART.R32", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (ROM32k, "CART.R32", "/");
+    }
+
+    fres = f_stat ("CART.R48", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (ROM48k, "CART.R48", "/");
+    }
+
+    fres = f_stat ("CART.KO4", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (KonamiWithoutSCC, "CART.KO4", "/");
+    }
+
+    fres = f_stat ("CART.KO5", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (KonamiWithSCC, "CART.KO5", "/");
+    }
+
+    fres = f_stat ("CART.KD5", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (KonamiWithSCCNOSCC, "CART.KD5", "/");
+    }
+
+    fres = f_stat ("CART.A8K", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (ASCII8k, "CART.A8K", "/");
+    }
+
+    fres = f_stat ("CART.A16", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (ASCII16k, "CART.A16", "/");
+    }
+
+    fres = f_stat ("CART.N16", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (NEO16, "CART.N16", "/");
+    }
+
+    fres = f_stat ("CART.N8K", &fno);
+    if (fres == FR_OK) {
+        ProgramCart (NEO8, "CART.N8K", "/");
+    }
 
     menu.FileIndexPage = 1;
     strcpy ((char *)menu.folder, "");
@@ -84,7 +131,10 @@ void PrintMainMenu (int page) {
     ClearScreen();
     menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
 
-    appendString (&scb, " v3.0     RISKY MSX ");
+
+    appendString (&scb, " ");
+    appendString (&scb, FIRMWARE_VERSION_STRING);
+    appendString (&scb, "    RISKY MSX ");
     appendString (&scb, "Page:");
     char pageString[5];
     intToString (page, pageString);
@@ -139,21 +189,15 @@ void PrintMainMenu (int page) {
         NewLine();
     }
 
-    MoveCursor (22, 0);
-    appendString (&scb, " Folder:");
-
+    MoveCursor (21, 0);
     uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
-    strcpy ((char *)location, (char *)menu.folder);
-    int length = strlen ((char *)location);
-    if (length > 0) {
-        location[length - 1] = '\0';
-    }
+    strncpy ((char *)location, (char *)menu.folder, 63);
+    location[63] = '\0';
     appendString (&scb, (char *)location);
     free (location);
 
     MoveCursor (23, 0);
-    appendString (&scb, " ARROWS,RETURN,ESC,1-MAPPER 9");
-
+    appendString (&scb, " ARROWS,RET,ESC,1-MAP,BKSP-..");
 
     MoveCursor (1, 1);
     MovePointer (PointerX, PointerY);
@@ -176,8 +220,8 @@ void PrintMapperMenu() {
     MoveCursor (21, 0);
 
     uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
-    strcpy ((char *)location, (char *)menu.folder);
-    append (&scb, 0x20);
+    strncpy ((char *)location, (char *)menu.folder, 63);
+    location[63] = '\0';
     appendString (&scb, (char *)location);
     free (location);
 
@@ -240,7 +284,7 @@ void ProcessMSXTerminal (void) {
             ClearScreen();
             appendString (&scb, "Insert USB.");
             menu.FileIndexPage = 1;
-            strcpy ((char *)menu.folder, "/");
+            strcpy ((char *)menu.folder, "");
             FRESULT fres;
             FATFS fs;
             do {
@@ -250,6 +294,35 @@ void ProcessMSXTerminal (void) {
                 }
             } while (fres != FR_OK);
 
+            PrintMainMenu (menu.FileIndexPage);
+        }
+
+        if (key == 0x08) {
+            // Remove last section from menu.folder (go up one directory)
+            size_t len = strlen ((char *)menu.folder);
+            if (len > 0) {
+                // Remove trailing slash if present
+                if (menu.folder[len - 1] == '/' && len > 1) {
+                    menu.folder[len - 1] = '\0';
+                    len--;
+                }
+                // Find last slash
+                char *lastSlash = strrchr ((char *)menu.folder, '/');
+                if (lastSlash != NULL) {
+                    // If not root, cut after last slash
+                    if (lastSlash == (char *)menu.folder) {
+                        // Go to root "/"
+                        menu.folder[1] = '\0';
+                    } else {
+                        *lastSlash = '\0';
+                    }
+                } else {
+                    // No slash, go to empty (root)
+                    menu.folder[0] = '\0';
+                }
+            }
+            menu.FileIndexPage = 1;
+            ClearScreen();
             PrintMainMenu (menu.FileIndexPage);
         }
 
@@ -290,11 +363,18 @@ void ProcessMSXTerminal (void) {
                 if (!menu.FileArray[menu.FileIndex]->isDir) {
                     PrintMapperMenu();
                 } else {
+                    // Build new folder path by appending selected dir name to current folder
+                    char newFolder[256];
+                    strcpy (newFolder, (char *)menu.folder);
+                    size_t len = strlen (newFolder);
+                    if (len > 0 && newFolder[len - 1] != '/') {
+                        strcat (newFolder, "/");
+                    }
+                    strcat (newFolder, (char *)menu.FileArray[menu.FileIndex]->name);
+                    strcat (newFolder, "/");
+                    strcpy ((char *)menu.folder, newFolder);
                     menu.FileIndexPage = 1;
                     ClearScreen();
-                    handle_path ((char *)menu.Filename);
-                    strcat ((char *)menu.Filename, "/");
-                    strcpy ((char *)menu.folder, (char *)menu.Filename);
                     PrintMainMenu (menu.FileIndexPage);
                     return;
                 }

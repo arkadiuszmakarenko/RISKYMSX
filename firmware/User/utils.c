@@ -134,22 +134,7 @@ int strToInt (const char *str) {
     return result;
 }
 
-void handle_path (char *str) {
-    char *last_slash = strrchr (str, '/');
-    if (last_slash != NULL) {
-        if (strcmp (last_slash, "/.") == 0) {
-            *last_slash = '\0';  // Remove the /. section by terminating the string at the last '/'
-        } else if (strcmp (last_slash, "/..") == 0) {
-            *last_slash = '\0';  // Temporarily terminate the string at the last '/'
-            char *second_last_slash = strrchr (str, '/');
-            if (second_last_slash != NULL) {
-                *second_last_slash = '\0';  // Remove the previous section by terminating the string at the second-to-last '/'
-            }
-        }
-    }
-}
-
-int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page) {
+int listFiles (uint8_t folder[255], FileEntry *FileArray[20], int page) {
     DIR dir;
     FILINFO fno;
     int firstItem = (page - 1) * 20;
@@ -162,7 +147,7 @@ int listFiles (uint8_t folder[64], FileEntry *FileArray[20], int page) {
     do {
         fres = f_mount (&fs, "", 1);
         if (fres != FR_OK) {
-            Delay_Ms (100);
+            Delay_Ms (20);
         }
     } while (fres != FR_OK);
 
