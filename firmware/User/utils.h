@@ -30,6 +30,7 @@ int pop (CircularBuffer *cb, uint32_t *item);
 int popmini (CircularBuffer *cb, uint32_t *item);
 void appendString (CircularBuffer *cb, const char *inputString);
 int isFull (CircularBuffer *cb);
+void flushBuffer (CircularBuffer *cb);
 
 int strToInt (const char *str);
 void intToString (int num, char *str);

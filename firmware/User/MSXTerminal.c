@@ -111,6 +111,7 @@ void Init_MSXTerminal (void) {
 
     menu.FileIndexPage = 1;
     strcpy ((char *)menu.folder, "");
+    flushBuffer (&icb);
     PrintMainMenu (menu.FileIndexPage);
 }
 
@@ -273,6 +274,7 @@ void ProcessMSXTerminal (void) {
     uint32_t key;
 
     if (popmini (&icb, &key) == 0) {
+        flushBuffer (&icb);
         if (key == 0x1B) {  // handle ESC
 
             ClearScreen();
@@ -287,7 +289,7 @@ void ProcessMSXTerminal (void) {
                     Delay_Ms (500);
                 }
             } while (fres != FR_OK);
-
+            flushBuffer (&icb);
             PrintMainMenu (menu.FileIndexPage);
         }
 

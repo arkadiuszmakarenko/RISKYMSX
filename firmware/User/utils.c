@@ -36,6 +36,11 @@ int isFull (CircularBuffer *cb) {
     return 0;
 }
 
+void flushBuffer (CircularBuffer *cb) {
+    cb->head = 0;
+    cb->tail = 0;
+}
+
 int append (CircularBuffer *cb, uint32_t item) {
     uint32_t next = (cb->head + 1) & (BUFFER_SIZE - 1);  // Compute the next position using bitwise AND
     while (next == cb->tail) { };
