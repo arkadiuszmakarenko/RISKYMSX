@@ -275,6 +275,15 @@ uint8_t USBH_PreDeal (void) {
     return DEF_DEFAULT;
 }
 
+void ClearUSB() {
+    uint8_t usb_port = DEF_USB_PORT_FS;
+    uint8_t index;
+
+    index = RootHubDev[usb_port].DeviceIndex;
+    memset (&RootHubDev[usb_port].bStatus, 0, sizeof (struct _ROOT_HUB_DEVICE));
+    memset (&HostCtl[index].InterfaceNum, 0, sizeof (struct __HOST_CTL));
+}
+
 // SCSI READ CAPACITY (returns block count and block size)
 uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size) {
     CBW_t cbw;

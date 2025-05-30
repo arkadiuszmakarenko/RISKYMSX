@@ -10,6 +10,7 @@
 #include "ff.h"     /* Obtains integer types */
 #include "diskio.h" /* Declarations of disk functions */
 #include "usb_disk.h"
+#include "utils.h"
 
 /* Definitions of physical drive number for each drive */
 #define DEV_RAM 0 /* Example: Map Ramdisk to physical drive 0 */
@@ -17,19 +18,16 @@
 #define DEV_USB 2 /* Example: Map USB MSD to physical drive 2 */
 
 static uint32_t block_count = 0, block_size = 0;
+extern CircularBuffer scb;
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
 /*-----------------------------------------------------------------------*/
 
 DSTATUS disk_status (
-    BYTE pdrv /* Physical drive nmuber to identify the drive */
+    BYTE pdrv /* Physical drive number to identify the drive */
 ) {
-    uint8_t res = USBH_PreDeal();
-    if (res == 0 || res == 0xFF)
-        return 0;  // Disk OK
-    else
-        return STA_NOINIT;
+    return RES_OK;
 }
 
 /*-----------------------------------------------------------------------*/
@@ -39,6 +37,7 @@ DSTATUS disk_status (
 DSTATUS disk_initialize (
     BYTE pdrv /* Physical drive nmuber to identify the drive */
 ) {
+    ClearUSB();
     uint8_t res = USBH_PreDeal();
     if (res == 0 || res == 0xFF) {
         if (usb_scsi_read_capacity (&block_count, &block_size) != 0 || block_size != 512)

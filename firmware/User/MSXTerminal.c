@@ -42,13 +42,9 @@ void Init_MSXTerminal (void) {
     appendString (&scb, " ");
     appendString (&scb, FIRMWARE_VERSION_STRING);
     NewLine();
+    USB_Initialization();
     appendString (&scb, "Insert USB.");
     NewLine();
-
-    USB_Initialization();
-
-    while (USBH_PreDeal() != 0) { }
-    appendString (&scb, " USB Enumeration complete.");
     NewLine();
 
     FATFS fs;
@@ -58,7 +54,7 @@ void Init_MSXTerminal (void) {
     do {
         fres = f_mount (&fs, "", 1);
         if (fres != FR_OK) {
-            Delay_Ms (100);
+            Delay_Ms (500);
         }
     } while (fres != FR_OK);
 
@@ -288,7 +284,7 @@ void ProcessMSXTerminal (void) {
             do {
                 fres = f_mount (&fs, "", 1);
                 if (fres != FR_OK) {
-                    Delay_Ms (100);
+                    Delay_Ms (500);
                 }
             } while (fres != FR_OK);
 

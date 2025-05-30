@@ -68,6 +68,8 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     appendString (&scb, " Programming!");
     NewLine();
     append (&scb, 0x20);
+    MoveCursor (9, 1);
+    appendString (&scb, "Progress: 0%");
     Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
     IAP_Load_Addr_Offset = 0;
     IAP_WriteIn_Length = 0;
