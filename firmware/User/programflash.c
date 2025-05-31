@@ -55,26 +55,35 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     {
         NewLine();
         appendString (&scb, "256KB limit exceeded!");
+        NewLine();
         Delay_Ms (2000);
         PrintMainMenu (0);
         f_close (&file);
         return;
     }
 
+    // Erase flash region before programming
+    Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
+    Flash_Operation_Key1 = DEF_FLASH_OPERATION_KEY_CODE_1;
+    NewLine();
+    appendString (&scb, " Erasing flash...");
+    NewLine();
+    waitBufferEmpty (&scb);
+    EraseFlashRegion (fileSize);
+    Flash_Operation_Key1 = 0;
     totalcount = fileSize;
     File_Length = totalcount;
     NewLine();
-    NewLine();
-    appendString (&scb, " Programming!");
+    appendString (&scb, " Programming and verifying...");
     NewLine();
     append (&scb, 0x20);
     MoveCursor (9, 1);
     appendString (&scb, "Progress: 0%");
+    waitBufferEmpty (&scb);
     Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
     IAP_Load_Addr_Offset = 0;
     IAP_WriteIn_Length = 0;
     IAP_WriteIn_Count = 0;
-
     while (totalcount) {
         // Read in chunks, up to DEF_MAX_IAP_BUFFER_LEN or less if at end
         if (totalcount > DEF_MAX_IAP_BUFFER_LEN) {
@@ -94,6 +103,7 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
         IAP_Load_Addr_Offset += bytesRead;
         IAP_WriteIn_Count += bytesRead;
 
+
         // Progress feedback every 5%
         static uint8_t last_percent = 0;
         uint8_t percent = (uint8_t)(((uint64_t)IAP_WriteIn_Count * 100) / fileSize);
@@ -110,6 +120,7 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
             appendString (&scb, msg);
             appendString (&scb, "%");
             NewLine();
+            waitBufferEmpty (&scb);
         }
     }
     f_close (&file);
@@ -278,7 +289,7 @@ uint8_t IAP_Flash_Write (uint32_t address, uint8_t *buff, uint32_t length) {
             /* If it is less than, the original content of the memory needs to be read out first and modified before the operation can be performed */
             write_len_once = DEF_FLASH_PAGE_SIZE;
             FLASH_Unlock_Fast();
-            FLASH_ErasePage_Fast (page_addr);
+            // FLASH_ErasePage_Fast (page_addr);
             if (write_len < DEF_FLASH_PAGE_SIZE) {
                 FLASH_Unlock_Fast();
                 IAP_Flash_Read (page_addr, temp_buf, DEF_FLASH_PAGE_SIZE);
@@ -481,4 +492,21 @@ void MapperCode_Update (CartType type) {
     FLASH_ErasePage_Fast (cfg_address);
     FLASH_ProgramPage_Fast (cfg_address, cfg);
     FLASH_Lock_Fast();
+}
+
+// Universal flash erase function using 64KB blocks
+void EraseFlashRegion (uint32_t length_bytes) {
+    Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
+    Flash_Operation_Key1 = DEF_FLASH_OPERATION_KEY_CODE_1;
+
+    uint32_t block_size = 32 * 1024;  // 64KB per block
+    uint32_t block_cnt = (length_bytes + block_size - 1) / block_size;
+    uint32_t block_addr = start_address;
+
+    for (uint32_t i = 0; i < block_cnt; i++) {
+        FLASH_Unlock_Fast();
+        FLASH_EraseBlock_32K_Fast (block_addr);
+        block_addr += block_size;
+    }
+    Flash_Operation_Key1 = 0;
 }

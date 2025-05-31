@@ -25,6 +25,7 @@ extern uint8_t IAP_Flash_Write (uint32_t address, uint8_t *buff, uint32_t length
 extern uint32_t IAP_Flash_Verify (uint32_t address, uint8_t *buff, uint32_t length);
 extern uint32_t IAP_Flash_Program (uint32_t address, uint8_t *buff, uint32_t length);
 extern void FLASH_ReadWordAdd (uint32_t address, u32 *buff, uint16_t length);
+void EraseFlashRegion (uint32_t length_bytes);
 
 void mStopIfError (uint8_t iError);
 void ProgramCart (CartType cartType, char *Filename, char *Folder);

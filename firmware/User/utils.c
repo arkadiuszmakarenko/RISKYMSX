@@ -200,4 +200,11 @@ void CombinePath (char *dest, const char *folder, const char *filename) {
     strcat (dest, filename);
 }
 
+// Waits until the buffer is empty (no data to be sent)
+void waitBufferEmpty(CircularBuffer *cb) {
+    while (cb->head != cb->tail) {
+        // Optionally, add a small delay here if needed to avoid busy-waiting
+    }
+}
+
 #pragma GCC pop_options
