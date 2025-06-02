@@ -172,7 +172,182 @@ You can solder components in the following suggested order, or do as you feel co
 >
 > C11 is the capacitor to the right of the C5 capacitor
 
-### Programming the firmware
+### Building the firmware on Linux
+
+#### Cloning the RISKYMSX github repository
+
+```bash
+cd $HOME
+git clone 'https://github.com/arkadiuszmakarenko/RISKYMSX.git'
+```
+
+This will clone the RISKYMSX github repository under the `RISKYMSX` directory under your home directory.
+
+
+#### Installing the [MounRiverStudio IDE](http://www.mounriver.com)
+
+1. Download the MounRiverStudio package for Linux
+
+[http://www.mounriver.com/download](http://www.mounriver.com/download)
+
+Choose the package in `tar.xz` format.
+
+2. Uncompress the MounRiverStudio package into a known directory
+
+For example this will uncompress the MounRiverStudio package into the IDE directory under your home directory.
+
+```bash
+export IDEDIR=$HOME/IDE
+mkdir -p $IDEDIR && cd $IDEDIR
+tar xJvf /path/to/MounRiverStudio_Linux_X64_V210.tar.xz
+```
+
+Once uncompressed all package files are under the `MRS2` directory.
+
+3. Setup the MounRiverStudio
+
+You can follow the instructions described on the `README` file.
+Alternatively, if you don't want to install library files system-wide you can follow these instructions:
+
+* Change to the `MRS2/beforeinstall` directory
+
+```bash
+cd MRS2/beforeinstall
+```
+
+* Make a backup of the `start.sh` script file for reference
+
+```bash
+cp start.sh start.sh.orig
+```
+
+* Modify the `start.sh` script file.
+
+Comment out the lines that install libraries and the line that gives world write access to all files under the `MRS-linux-x64` directory.
+Leave as is the code that copies the udev rules for the WCH programmers and reloads them into udevadm.
+
+```bash
+#! /bin/bash
+#echo  -e "\nCopy Libs"
+#sudo cp -P ./lib*    /usr/lib
+#echo  -e "Register new Libs"
+#sudo ldconfig
+echo "copy rules"
+sudo cp ./50-wch.rules /etc/udev/rules.d
+sudo cp ./60-openocd.rules  /etc/udev/rules.d
+echo "Reload rules"
+sudo udevadm control  --reload-rules
+
+#chmod -R 777 ../MRS-linux-x64
+chmod -R 750 ../MRS-linux-x64
+
+echo -e "DONE"
+```
+
+* Run the modified `start.sh` script
+
+```bash
+chmod u+x start.sh
+./start.sh
+```
+
+* Make the `chrome-sandbox` executable suid to root by changing the ownership of the file to root and setting the SUID bit.
+
+This is required as the MounRiverStudio IDE is an Electron-based application that uses a sandbox approach.
+
+```bash
+cd ../MRS-linux-x64
+sudo chown root chrome-sandbox
+sudo chmod 4755 chrome-sandbox
+```
+
+#### Launching the MounRiverStudio IDE
+
+If you installed the MounRiverStudio IDE under `$HOME/IDE`, use the following complete command line whenever you need to launch MounRiverStudio IDE specifying where to find the extra libraries needed.
+
+```bash
+cd $HOME/IDE/MRS2/MRS-linux-x64
+LD_LIBRARY_PATH=$(readlink -f ../beforeinstall/) ./mounriver-studio\ 2
+```
+
+[<img src="images/mounriverstudio-ide-about.png" width="768"/>](images/mounriverstudio-ide-about.png)
+
+
+#### Generating the firmware file
+
+1. After launching the MounRiverStudio IDE, open the RISKYMSXCART project file
+
+`File | Open MounRiver Project`
+
+**`/path/to/your/RISKYMSX/firmware/RISKYMSXCART.wvproj`**
+
+The project file is under the `firmware` directory on the cloned github repository.
+
+2. Build the project
+
+`Project | Build Project`
+
+[<img src="images/mounriverstudio-ide-build-project.png" width="768"/>](images/mounriverstudio-ide-build-project.png)
+
+
+#### Programming the firmware
+
+The firmware can be programmed into the RISKYMSX cartridge using the MounRiverStudio IDE and a WCH-LinkE programmer, or using the WCHISPTool_CMD and a USB Type A to Type A cable.
+
+##### Programming the firmware using the WCH-LinkE programmer
+
+1. Connect the WCH-LinkE programmer and RISKYMSX cartridge
+
+  * Make sure the RISKYMSX cartridge is _disconnected_ from the MSX.
+
+  * Using two dupont wires, connect the WCH-LinkE programmer to the RISKYMSX cartridge.
+
+    You need to perform specifically the following connections:
+    * the SWCLK/TCK pin of the WCH-LinkE programmer to the CLK pin of the J8 header of the RISKYMSX cartridge
+    * the SWDIO/TMS pin of the WCH-LinkE programmer to the DAT pin of the J8 header of the RISKYMSX cartridge
+
+[<img src="images/wch-linke-connection-to-riskymsx-cartridge.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge.png)
+
+
+* Connect the USB port of the RISKYMSX cartridge to a free USB port of the computer running the MounRiverStudio software.
+
+You will need a USB Type A end on the RISKYMSX cartridge and the appropiate USB end on your computer.
+
+This USB connection will be used just to power the CH32V30xVCT6.
+After the connection is made, the RISKYMSX cartridge should lit the power led PWR on.
+
+* Connect the WCH-LinkE programmer to the computer running the MounRiverStudio IDE on a free USB Type A port.
+
+Once connected, the WCH-LinkE should lit the red led on and the blue led off to indicate operation in RISC-V mode.
+
+[<img src="images/wch-linke-red-led-riscv-mode.png" width="768"/>](images/wch-linke-red-led-riscv-mode.png)
+
+If the WCH-LinkE shows any other led combination, you should follow the [WCH-LinkE manual](https://www.wch-ic.com/downloads/WCH-LinkUserManual_PDF.html) to put your WCH-LinkE in RISC-V mode.
+
+One simple way to switch to RISC-V mode is to press and hold the ModeS button while connecting the WCH-LinkE programmer.
+Note that on some WCH-LinkE programmers the plastic enclosure does not allow access to the ModeS button and you will need to either remove the enclosure to access the ModeS button or use the MounRiverStudio software to switch to RISC-V mode by software.
+
+2. Launch the MounRiverStudio IDE and open the Download preferences to specify the memory assignment settings and location of the target file
+
+`Flash | Download Configuration`
+
+`Download Settings`
+
+`MCU Memory Assign: ` **`288K ROM + 32K RAM`**
+
+`Target File : `**`/path/to/your/RISKYMSX/firmware/obj/RISKYMSXCART.hex`**
+
+[<img src="images/mounriverstudio-ide-download-settings-and-memory-assign.png" width="768"/>](images/mounriverstudio-ide-download-settings-and-memory-assign.png)
+
+3. Proceed with the firmware download to the RISKYMSX cartridge
+
+`Flash | Download`
+
+[<img src="images/mounriverstudio-ide-download.png" width="768"/>](images/mounriverstudio-ide-download.png)
+
+If you receive an error, try disconnecting and reconnecting the USB cable from the RISKYMSX cartridge and retry the operation.
+
+##### Programming the firmware using the WCHISPTool_CMD tool
 
 TBE
 
@@ -275,6 +450,9 @@ The RISKYMSXCart has been tested on the following MSX computers:
 | Philips MSX2 VG-8235     |          OK               |
 | Panasonic MSX2+ FS-A1WSX |          OK               |
 | Omega MSX2+              |          OK               |
+| Tides Rider MSX2+        |          OK               |
+| TFMSX Rev 1 MSX2+        |          OK               |
+| TFMSX Rev 2 MSX2+        |          OK               |
 | MSXVR                    |          `NOK`            |
 
 Other MSX compatible computers will probably work too, but have not been specifically tested.
