@@ -1,6 +1,6 @@
 # RISKYMSX
 
-The RISKYMSXCart by Arkadiusz Makarenko is a compact MSX flash ROM cartridge based on the inexpensive CH32V30xVCT6 RISC-V MCU which can be easily programmed from a MSX computer using a FAT formatted USB pen drive containing ROM files.
+The RISKYMSX cartridge by Arkadiusz Makarenko is a compact MSX flash ROM cartridge based on the inexpensive CH32V30xVCT6 RISC-V MCU which can be easily programmed from a MSX computer using a FAT formatted USB pen drive containing ROM files.
 
 [<img src="images/RISKYMSXCart-Rev2.1-front-populated-1024px.png" width="400"/>](images/RISKYMSXCart-Rev2.1-front-populated-1024px.png)
 
@@ -32,7 +32,7 @@ The RISKYMSXCart by Arkadiusz Makarenko is a compact MSX flash ROM cartridge bas
 
 ## Hardware
 
-The RISKYMSXCart is made up of a 4-layer PCB with a reduced set of SMD components and through-hole connectors:
+The RISKYMSX cartridge is made up of a 4-layer PCB with a reduced set of SMD components and through-hole connectors:
 * A WCH [CH32V303VCT6](https://www.wch-ic.com/products/CH32V303.html) MCU (or alternatively a [CH32V307VCT6](https://www.wch-ic.com/products/CH32V307.html))
 * Two LEDs, one to indicate power on state, and one lit during `ROM Flashing Mode`
 * A [LM1117](https://www.ti.com/lit/ds/symlink/lm1117.pdf) voltage regulator to provide +3V3 to the MCU from the +5V rail of the MSX cartridge slot
@@ -84,7 +84,7 @@ This is the initial revision of the RISKYMSX cartridge.
 
 ## Firmware
 
-The firmware implements two different modes of operation for the RISKYMSXCart:
+The firmware implements two different modes of operation for the RISKYMSX cartridge:
 * `Normal Mode`. In this mode a ROM cartridge is emulated according to the last ROM flashed using the `ROM Flashing Mode`.
 * `ROM Flashing Mode`. In this mode a ROM can be flashed manually or automatically into the cartridge by using a FAT formatted USB pen drive.
 
@@ -174,6 +174,9 @@ You can solder components in the following suggested order, or do as you feel co
 
 ### Building the firmware on Linux
 
+> [!NOTE]
+> These instructions have been validated using Ubuntu 24.04.2 LTS.
+
 #### Cloning the RISKYMSX github repository
 
 ```bash
@@ -181,7 +184,7 @@ cd $HOME
 git clone 'https://github.com/arkadiuszmakarenko/RISKYMSX.git'
 ```
 
-This will clone the RISKYMSX github repository under the `RISKYMSX` directory under your home directory.
+This will clone the RISKYMSX github repository to the `RISKYMSX` directory under your home directory.
 
 
 #### Installing the [MounRiverStudio IDE](http://www.mounriver.com)
@@ -202,7 +205,7 @@ mkdir -p $IDEDIR && cd $IDEDIR
 tar xJvf /path/to/MounRiverStudio_Linux_X64_V210.tar.xz
 ```
 
-Once uncompressed all package files are under the `MRS2` directory.
+Once uncompressed, all package files are under the `MRS2` directory.
 
 3. Setup the MounRiverStudio
 
@@ -294,7 +297,14 @@ The project file is under the `firmware` directory on the cloned github reposito
 
 The firmware can be programmed into the RISKYMSX cartridge using the MounRiverStudio IDE and a WCH-LinkE programmer, or using the WCHISPTool_CMD and a USB Type A to Type A cable.
 
+> [!NOTE]
+> It has been observed that the WCH-LinkE programmer method is more reliable than the WCHISPTool_CMD method when flashing a chip for the first time.
+
+Choose the option that better suits you.
+
 ##### Programming the firmware using the WCH-LinkE programmer
+
+Using the WCH-LinkE allows to program a .HEX firmware file to the CH32V30xVCT6.
 
 1. Connect the WCH-LinkE programmer and RISKYMSX cartridge
 
@@ -308,24 +318,27 @@ The firmware can be programmed into the RISKYMSX cartridge using the MounRiverSt
 
 [<img src="images/wch-linke-connection-to-riskymsx-cartridge.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge.png)
 
-
 * Connect the USB port of the RISKYMSX cartridge to a free USB port of the computer running the MounRiverStudio software.
 
-You will need a USB Type A end on the RISKYMSX cartridge and the appropiate USB end on your computer.
+You will need a USB Type A end on the RISKYMSX cartridge and the appropriate USB end on your computer.
 
 This USB connection will be used just to power the CH32V30xVCT6.
 After the connection is made, the RISKYMSX cartridge should lit the power led PWR on.
+
+[<img src="images/wch-linke-connection-to-riskymsx-cartridge-2.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge-2.png)
 
 * Connect the WCH-LinkE programmer to the computer running the MounRiverStudio IDE on a free USB Type A port.
 
 Once connected, the WCH-LinkE should lit the red led on and the blue led off to indicate operation in RISC-V mode.
 
-[<img src="images/wch-linke-red-led-riscv-mode.png" width="768"/>](images/wch-linke-red-led-riscv-mode.png)
+[<img src="images/wch-linke-connection-to-riskymsx-cartridge-3.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge-3.png)
 
 If the WCH-LinkE shows any other led combination, you should follow the [WCH-LinkE manual](https://www.wch-ic.com/downloads/WCH-LinkUserManual_PDF.html) to put your WCH-LinkE in RISC-V mode.
 
 One simple way to switch to RISC-V mode is to press and hold the ModeS button while connecting the WCH-LinkE programmer.
 Note that on some WCH-LinkE programmers the plastic enclosure does not allow access to the ModeS button and you will need to either remove the enclosure to access the ModeS button or use the MounRiverStudio software to switch to RISC-V mode by software.
+
+[<img src="images/wch-linke-red-led-riscv-mode.png" width="768"/>](images/wch-linke-red-led-riscv-mode.png)
 
 2. Launch the MounRiverStudio IDE and open the Download preferences to specify the memory assignment settings and location of the target file
 
@@ -345,18 +358,114 @@ Note that on some WCH-LinkE programmers the plastic enclosure does not allow acc
 
 [<img src="images/mounriverstudio-ide-download.png" width="768"/>](images/mounriverstudio-ide-download.png)
 
-If you receive an error, try disconnecting and reconnecting the USB cable from the RISKYMSX cartridge and retry the operation.
+If you receive an error, try power cycling the RISKYMSX cartridge by disconnecting and reconnecting the USB cable from the RISKYMSX cartridge, and then retry the operation.
 
 ##### Programming the firmware using the WCHISPTool_CMD tool
 
+Using the WCH-LinkE allows to program a .BIN firmware file to the CH32V30xVCT6.
+
+1. If you haven't done it yet, download and uncompress the WCHISPTool_CMD archive
+
+* Download the [WCHISPTool_CMD](https://www.wch-ic.com/downloads/WCHISPTool_CMD_ZIP.html)
+
+* Uncompress the `WCHISPTool_CMD.ZIP` archive
+
+```bash
+unzip WCHISPTool_CMD.ZIP
+```
+
+Once uncompressed all package files are under the `WCHISPTool_CMD/` directory.
+
+* Make sure the `WCHISPTool_CMD` tool is executable
+
+```bash
+chmod u+x WCHISPTool_CMD/Linux/bin/x64/WCHISPTool_CMD
+```
+
+This will make the tool binary for x64 processors executable by the current user.
+
+2. Build the required Linux kernel module
+
+The mentioned Linux kernel mode is used to talk to the ISP interface of the CH32V30xVCT6 chip.
+
+You will need to build the kernel module everytime you upgrade your kernel, otherwise the kernel module will not load because of the mismatch between kernel and module.
+
+```bash
+cd WCHISPTool_CMD/Linux/driver/
+make clean
+make
+```
+
+Note that you are not required to run `make install` to install the kernel module if you just want to use the tool sparingly.
+
+3. Load the compiled kernel module into the running kernel
+
+```bash
+sudo insmod ch37x.ko
+```
+
+4. Close the B0 header pins using a 2.54" jumper.
+
+By closing the B0 header, the CH32V30xVCT6 MCU will enter ISP programming mode once powered on.
+
+5. Connect the RISKYMSX cartridge to your computer using a USB cable.
+
+The required USB cable needs a Type A male termination on one side to connect to the RISKYMSX cartridge, and another USB male connector suitable for your computer on the other end.
+If your computer has USB Type A ports, a USB Type A to USB Type A cable should be fine.
+
+[<img src="images/isp-riskymsx-connection-for-programming.png" width="768"/>](images/isp-riskymsx-connection-for-programming.png)
+
+6. Check that the device node for the CH32V30xVCT6 in ISP programming node appears on your system
+
+```bash
+ls -la /dev/ch3*
+```
+```
+crw------- 1 root root 180, 2 Jun  3 15:58 /dev/ch37x2
+```
+
+6. Run the `WCHISPTool_CMD` tool to program the RISKYMSX cartridge firmware
+
+The following command assumes that both the `WCHISPTool_CMD` and `RISKYMSX` github repository directories are available under the current working directory, and that the RISKYMSX firmware binary file has been copied to the current directory under the name `RISKYMSXCART.bin`.
+
+```bash
+sudo WCHISPTool_CMD/Linux/bin/x64/WCHISPTool_CMD -p /dev/ch37x2 -f RISKYMSXCART.bin -o program -c RISKYMSX/prog/CONFIG.INI -r 1
+```
+
+where:
+* `/dev/ch37x2` is the device node for your CH32V30x as it appears on your system
+* `RISKYMSXCART.bin` is the firmware binary file provided in the github repository (or the one built by you if you rebuilt the project)
+* `RISKYMSX/prog/CONFIG.INI` is the configuration file for the `WCHISPTool_CMD` also provided in the github repository
+
+When the programming completes successfully you will see an output similar to this one:
+
+```
+=====ISP_Command_Tool=====
+
+TOOL VERSION:  V3.70
+
+p:/dev/ch37x2
+b:0
+v:0
+c:RISKYMSX/prog/CONFIG.INI
+o:0
+f:RISKYMSXCART.bin
+r:1
+
+{"Device":"/dev/ch37x2","Status":"Ready"}
+{"Device":"/dev/ch37x2", "Status":"Programming", "Progress":100%} 
+{"Device":/dev/ch37x2", "Status":"Finished", "Code":0,"Message":"Succeed"}
+```
+
+### Building the firmware on Windows
+
 TBE
 
-This chip can be programed using USB A to USB A cable, serial cable (under Windows) or WCH LinkE programmer (Windows and Linux).
+#### Programming the firmware
 
-### Windows
 You need WCHISPTool from https://wch-ic.com/ website.
 
-#### USB A - USB A Cable or Serial adapter
+##### USB A - USB A Cable or Serial adapter
  * Close jumper B0.
  * Connect RISKY MSX to PC using USB A to USB A cable or serial.
  * For USB A Cable Dnld Port should change to USB.
@@ -368,46 +477,48 @@ You need WCHISPTool from https://wch-ic.com/ website.
  * Click Deprotect
  * Click Download
 
-### Linux
-You need WCHISPTool_CMD from https://wch-ic.com/ website.
-Install driver by going to Linux/driver and running
-`sudo make install`
-
-#### USB A - USB A Cable 
- * Copy RISKYMSX.INI file from repository upgrade folder
- * Close jumper B0.
- * Connect RISKY MSX to PC using USB A to USB A cable or serial.
- * Rename firmware file to something simplier eg. RISKYMSX.bin
- * Check if following file (or very similar) is being created when you plug in cart to PC `/dev/ch37x0`
- * Adapt and run command 
-   `sudo ./WCHISPTool_CMD -p /dev/ch37x0 -c RISKYMSX.INI -o program -f RISKYMSX.bin -r 1`
-   this command line is case sensitive, so make sure filenames and extentions are in right case.
-
 
 ## Cartridge Operation
 
+The RISKYMSX cartridge can operate in two different modes once programmed with the RISKYMSX firmware.
+
+Make sure the MSX computer is powered off before inserting or removing the RISKYMSX cartridge or any other cartridge.
+
+> [!WARNING]
+> All cartridge headers (B0, DAT/CLK and RX/TX) must be unconnected for cartridge operation when inserted into a MSX computer.
+
+
 ### Normal Mode
 
-TBD
+In `Normal mode` the RISKYMSX cartridge behaves as a ROM cartridge once a ROM has been flashed.
+
+Just insert the RISKYMSX cartridge and enjoy the already flashed ROM.
 
 ### ROM Flashing Mode
 
-TBE
+In `ROM Flashing Mode` a ROM file residing in a USB drive can be flashed to the RISKYMSX cartridge for later use in `Normal Mode`.
 
-Press and hold GRAPH button during MSX power up, until all LEDs on cart turn on.
-There might be some text appearing on the screen. This is section checking for auto flashing files.
-Follow instructions on the screen.
-You will be presented with list of files from root directory of the USB drive. You can list more files by pressing <RIGHT> <LEFT> arrows.
-You select file to flash by hitting <RETURN> then you need to select mapper type used for selected ROM.
-Then flashing will take place, and cartridge and MSX should reboot after the process is completed.
+1. Make sure the MSX computer is powered off
 
-<ESC> Reloads USB Flash drive data. This allows hot swapping USB stick during operation.
-<1> Mapper menu. This page allows to change mapper setting for a rom already flashed on the device. It allows quick change of mapper in case wrong one was picked up during ROM flashing.
+2. Insert the RISKYMSX cartridge
 
-#### Auto flash files
-If you want to load flash fast without need of using GUI then just place one file with below naming convention, and cart will pick it up after entering cart programming mode.
+3. Press and hold the `GRAPH` key on the MSX computer keyboard and power on the MSX computer.
 
-You need to rename rom file to following name, based on mapper used
+You can release the `GRAPH` key once you see the Flash LED turn on.
+
+[<img src="images/riskymsx-in-flashing-rom-mode.png" width="400"/>](images/riskymsx-in-flashing-rom-mode.png)
+
+4. If no USB drive is connected to the RISKYMSX cartridge, the "Insert USB" screen will appear.
+
+[<img src="images/firmware-insert-usb-screen.png" width="512"/>](images/firmware-insert-usb-screen.png)
+
+You will need to connect a FAT-formatted USB drive to continue the ROM flashing procedure.
+
+Once that is done, the RISKYMSX will try first to auto-flash a ROM before switching to manually flashing ROMs.
+
+#### Auto-flashing ROMs
+
+The RISKYMSX firmware will automatically flash the first file found on the root directory of the connected FAT-formatted USB drive matching one of the special filenames for ROM auto-flashing, according to the following table. A mapper will be automatically assigned based on the filename detected.
 
  | Mapper               | filename         | 
  |   :-----------:      | :--------------: | 
@@ -421,18 +532,48 @@ You need to rename rom file to following name, based on mapper used
  | NEO16                | cart.n16         | 
  | NEO8                 | cart.n8k         | 
 
-1. Copy file to root directory of a FAT32 formatted drive. It has to be FAT32, EX-FAT is NOT supported.
-2. Power off your MSX with a cart inserted. 
-3. Place flash drive in cartridge USB.
-4. Press and hold the GRAPH key
-5. Power on MSX.
-6. Cartridge should display information about flashing. If flashing takes just few seconds (smaller ROMs) you may not see any messages.
-7. MSX should reboot and game should load automatically.
+So for example, to automatically flash F1SPIRIT.ROM, which is a KONAMI with SCC game, the F1SPIRIT.ROM file can be copied to the root of the USB drive using the filename **cart.ko5**, and then follow the mentioned procedure.
 
-Cartridge will have various LED configurations based on type of mapper used.
+[<img src="images/riskymsx-in-auto-flashing-rom-mode.png" width="512"/>](images/riskymsx-in-auto-flashing-rom-mode.png)
+
+After flashing the ROM file, the RISKYMSX will automatically reboot the MSX computer and the ROM will load.
+
+Note that if several files matching the auto-flashing filenames are found on the USB drive, only the file that causes the first match in the above table order will be flashed.
+
+#### Manually flashing ROMs
+
+If the connected FAT-formatted USB drive contains no files matching the auto-flashing filenames, the RISKYMSX firmware will display the interactive ROM flashing menu.
+
+[<img src="images/firmware-manually-selecting-file-screen.png" width="512"/>](images/firmware-manually-selecting-file-screen.png)
+
+Use the following keys to interact with the file menu screen:
+* `Up`, `Down`: move up or down the red arrow cursor across the available files in the current page
+* `Right`: go to the next page (if more files are available to list)
+* `Left`: go to the previous page (if any pagination was done before)
+* `Return`: select a file for flashing
+* `Esc`: go to the previous screen, or reload the file list on the root directory
+* `1`: show the current flashed ROM file and mapper type, and optionally change the mapper type
+* `Backspace`: go to the previous directory level on the file manu
+
+Useful tips:
+* The bottom of the file menu screen shows the keys that are available to use at any moment
+* You can always hot-swap the USB drive while in the file menu, and once a new USB drive is connected you need to press `Esc` to refresh the file contents
+* DO NOT navigate or select files while you have disconnected a USB drive without pressing `Esc` first
+* If you flash a ROM with the wrong mapper type, you can change the mapper type easily, without reflashing the ROM again, by pressing `1`
+
+When a ROM file is selected by pressing the `Return` key the mapper selection screen shows up.
+
+[<img src="images/firmware-manually-selecting-mapper-type-screen.png" width="512"/>](images/firmware-manually-selecting-mapper-type-screen.png)
+
+Select the correct mapper type for the selected ROM file and press `Return` to start flashing the ROM.
+
+[<img src="images/firmware-manually-flashing-rom-screen.png" width="512"/>](images/firmware-manually-flashing-rom-screen.png)
+
+Once the flashing process finishes the RISKYMSX firmware will reboot the MSX computer and the flashed ROM will load.
 
 
 ## General troubleshooting.
+
 If no LEDS are on during power up, You have issues with power lines or shorts.
 If during power up and button pressed no LEDs are flashing your MPU doesn't start at all.
 If you can download ROM to cart but MSX doesn't load data from cart then you have issues wih soldering of ADDRESS, DATA or BUS lines.
@@ -440,7 +581,7 @@ If you can download ROM to cart but MSX doesn't load data from cart then you hav
 
 ## Compatibility
 
-The RISKYMSXCart has been tested on the following MSX computers:
+The RISKYMSX cartridge has been tested on the following MSX computers:
 
 | **Model**                | **RISKYMSX**              |
 |--------------------------|---------------------------|
