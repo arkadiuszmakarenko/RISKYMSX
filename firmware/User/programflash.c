@@ -4,6 +4,27 @@
 #include <stdlib.h>
 #include "MSXTerminal.h"
 #include "usb_host_config.h"
+#include "ch32v30x_flash.h"
+
+#define CR_PG_Set ((uint32_t)0x00000001)
+#define CR_PG_Reset ((uint32_t)0xFFFFFFFE)
+#define CR_PER_Set ((uint32_t)0x00000002)
+#define CR_PER_Reset ((uint32_t)0xFFFFFFFD)
+#define CR_MER_Set ((uint32_t)0x00000004)
+#define CR_MER_Reset ((uint32_t)0xFFFFFFFB)
+#define CR_OPTPG_Set ((uint32_t)0x00000010)
+#define CR_OPTPG_Reset ((uint32_t)0xFFFFFFEF)
+#define CR_OPTER_Set ((uint32_t)0x00000020)
+#define CR_OPTER_Reset ((uint32_t)0xFFFFFFDF)
+#define CR_STRT_Set ((uint32_t)0x00000040)
+#define CR_LOCK_Set ((uint32_t)0x00000080)
+#define CR_FLOCK_Set ((uint32_t)0x00008000)
+#define CR_PAGE_PG ((uint32_t)0x00010000)
+#define CR_PAGE_ER ((uint32_t)0x00020000)
+#define CR_BER32 ((uint32_t)0x00040000)
+#define CR_BER64 ((uint32_t)0x00080000)
+#define CR_PG_STRT ((uint32_t)0x00200000)
+#define SR_BSY ((uint32_t)0x00000001)
 
 extern CircularBuffer scb;
 
@@ -23,6 +44,9 @@ volatile uint32_t end_address = 0x08048000;
 __attribute__ ((aligned (4))) uint8_t IAPLoadBuffer[DEF_MAX_IAP_BUFFER_LEN];
 
 void ProgramCart (CartType cartType, char *Filename, char *Folder) {
+    // Save current RCC_CFGR settings
+    uint32_t old_cfgr = RCC->CFGR0;
+
     uint32_t totalcount, t;
     uint16_t ret;
 
@@ -69,7 +93,16 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
     appendString (&scb, " Erasing flash...");
     NewLine();
     waitBufferEmpty (&scb);
-    EraseFlashRegion (fileSize);
+
+
+    RCC->CFGR0 = (RCC->CFGR0 & ~RCC_HPRE) | RCC_HPRE_DIV2;
+    Delay_Us (20);
+    FLASH_ROM_ERASE (start_address, fileSize);
+
+    // Restore original RCC_CFGR settings (including HCLK divider)
+    RCC->CFGR0 = old_cfgr;
+
+
     Flash_Operation_Key1 = 0;
     totalcount = fileSize;
     File_Length = totalcount;
@@ -98,7 +131,15 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
             return;
         }
         totalcount -= bytesRead;
+
+        RCC->CFGR0 = (RCC->CFGR0 & ~RCC_HPRE) | RCC_HPRE_DIV2;
+        Delay_Us (20);
         ret = IAP_Flash_Program (start_address + IAP_Load_Addr_Offset, IAPLoadBuffer, bytesRead);
+        // Restore original RCC_CFGR settings (including HCLK divider)
+        RCC->CFGR0 = old_cfgr;
+        Delay_Us (20);
+
+
         mStopIfError (ret);
         IAP_Load_Addr_Offset += bytesRead;
         IAP_WriteIn_Count += bytesRead;
@@ -492,21 +533,4 @@ void MapperCode_Update (CartType type) {
     FLASH_ErasePage_Fast (cfg_address);
     FLASH_ProgramPage_Fast (cfg_address, cfg);
     FLASH_Lock_Fast();
-}
-
-// Universal flash erase function using 64KB blocks
-void EraseFlashRegion (uint32_t length_bytes) {
-    Flash_Operation_Key0 = DEF_FLASH_OPERATION_KEY_CODE_0;
-    Flash_Operation_Key1 = DEF_FLASH_OPERATION_KEY_CODE_1;
-
-    uint32_t block_size = 32 * 1024;  // 64KB per block
-    uint32_t block_cnt = (length_bytes + block_size - 1) / block_size;
-    uint32_t block_addr = start_address;
-
-    for (uint32_t i = 0; i < block_cnt; i++) {
-        FLASH_Unlock_Fast();
-        FLASH_EraseBlock_32K_Fast (block_addr);
-        block_addr += block_size;
-    }
-    Flash_Operation_Key1 = 0;
 }
