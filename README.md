@@ -599,6 +599,14 @@ The RISKYMSX cartridge has been tested on the following MSX computers:
 Other MSX compatible computers will probably work too, but have not been specifically tested.
 
 
+## Enclosures
+
+### Acrylic Enclosure
+
+You can complete your RISKYMSX cartridge with an [acrylic enclosure](https://github.com/herraa1/msx-riskymsx-enclosure) suitable for all RISKYMSX cartridge board revisions.
+
+[<img src="https://raw.githubusercontent.com/herraa1/msx-riskymsx-enclosure/main/images/riskymsx-acrylic-enclosure-overview-IMG_7767.png" width="400"/>](https://github.com/herraa1/msx-riskymsx-enclosure)
+
 ## Acknowledgments
 
 The following people contributed to this project and supported me with technical aspects of this project.
