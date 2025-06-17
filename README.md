@@ -607,6 +607,14 @@ You can complete your RISKYMSX cartridge with an [acrylic enclosure](https://git
 
 [<img src="https://raw.githubusercontent.com/herraa1/msx-riskymsx-enclosure/main/images/riskymsx-acrylic-enclosure-overview-IMG_7767.png" width="400"/>](https://github.com/herraa1/msx-riskymsx-enclosure)
 
+
+### 3D Printed Enclosure
+
+Another option for closing your RISKY MSX Cartridge is following project  [Enclosure](https://github.com/rafaelan00/RISKYMSX-Enclosure)
+
+![rafaelanenclosure](https://github.com/user-attachments/assets/f1548c33-9ac4-423d-b359-c541ba7a8730)
+
+
 ## Acknowledgments
 
 The following people contributed to this project and supported me with technical aspects of this project.
