@@ -299,6 +299,7 @@ The firmware can be programmed into the RISKYMSX cartridge using the MounRiverSt
 
 > [!NOTE]
 > It has been observed that the WCH-LinkE programmer method is more reliable than the WCHISPTool_CMD method when flashing a chip for the first time.
+It is recommended to use WCH-LinkE for initial firmware programming,  there is a lot of reports that programming initial firmware over USB is very unreliable. Upgrading existing firmware using this method works well.
 
 Choose the option that better suits you.
 
