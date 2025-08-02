@@ -17,6 +17,19 @@ uint32_t volatile enableTerminal = 0;
 int PointerX = 1;
 int PointerY = 1;
 
+FATFS fs;
+void MountFilesystem(void) {
+    FRESULT fres;
+
+    // Mount the filesystem
+    do {
+        fres = f_mount (&fs, "", 1);
+        if (fres != FR_OK) {
+            Delay_Ms (500);
+        }
+    } while (fres != FR_OK);
+}
+
 void AutoProgramCart(char *Filename, CartType cartType) {
     FRESULT fres;
     FILINFO fno;
@@ -57,15 +70,7 @@ void Init_MSXTerminal (void) {
     NewLine();
     NewLine();
 
-    FATFS fs;
-    FRESULT fres;
-    // Mount the filesystem
-    do {
-        fres = f_mount (&fs, "", 1);
-        if (fres != FR_OK) {
-            Delay_Ms (500);
-        }
-    } while (fres != FR_OK);
+    MountFilesystem();
 
     // auto program ROMS
     AutoProgramCart("CART.R16", ROM16k);
@@ -251,14 +256,7 @@ void ProcessMSXTerminal (void) {
             appendString (&scb, "Insert USB.");
             menu.FileIndexPage = 1;
             strcpy ((char *)menu.folder, "");
-            FRESULT fres;
-            FATFS fs;
-            do {
-                fres = f_mount (&fs, "", 1);
-                if (fres != FR_OK) {
-                    Delay_Ms (500);
-                }
-            } while (fres != FR_OK);
+            MountFilesystem();
             flushBuffer (&icb);
             PrintMainMenu (menu.FileIndexPage);
         }
