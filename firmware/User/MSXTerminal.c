@@ -17,6 +17,17 @@ uint32_t volatile enableTerminal = 0;
 int PointerX = 1;
 int PointerY = 1;
 
+void AutoProgramCart(char *Filename, CartType cartType) {
+    FRESULT fres;
+    FILINFO fno;
+
+    // auto program
+    fres = f_stat (Filename, &fno);
+    if (fres == FR_OK) {
+        ProgramCart (cartType, Filename, "/");
+    }
+}
+
 void Init_MSXTerminal (void) {
     initBuffer (&scb);
     initMiniBuffer (&icb);
@@ -48,7 +59,6 @@ void Init_MSXTerminal (void) {
 
     FATFS fs;
     FRESULT fres;
-    FILINFO fno;
     // Mount the filesystem
     do {
         fres = f_mount (&fs, "", 1);
@@ -57,56 +67,17 @@ void Init_MSXTerminal (void) {
         }
     } while (fres != FR_OK);
 
-    // auto program
-    fres = f_stat ("CART.R16", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ROM16k, "CART.R16", "/");
-    }
-
-    fres = f_stat ("CART.R32", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ROM32k, "CART.R32", "/");
-    }
-
-    fres = f_stat ("CART.R48", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ROM48k, "CART.R48", "/");
-    }
-
-    fres = f_stat ("CART.KO4", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (KonamiWithoutSCC, "CART.KO4", "/");
-    }
-
-    fres = f_stat ("CART.KO5", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (KonamiWithSCC, "CART.KO5", "/");
-    }
-
-    fres = f_stat ("CART.KD5", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (KonamiWithSCCNOSCC, "CART.KD5", "/");
-    }
-
-    fres = f_stat ("CART.A8K", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ASCII8k, "CART.A8K", "/");
-    }
-
-    fres = f_stat ("CART.A16", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ASCII16k, "CART.A16", "/");
-    }
-
-    fres = f_stat ("CART.N16", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (NEO16, "CART.N16", "/");
-    }
-
-    fres = f_stat ("CART.N8K", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (NEO8, "CART.N8K", "/");
-    }
+    // auto program ROMS
+    AutoProgramCart("CART.R16", ROM16k);
+    AutoProgramCart("CART.R32", ROM32k);
+    AutoProgramCart("CART.R48", ROM48k);
+    AutoProgramCart("CART.KO4", KonamiWithoutSCC);
+    AutoProgramCart("CART.KO5", KonamiWithSCC);
+    AutoProgramCart("CART.KD5", KonamiWithSCCNOSCC);
+    AutoProgramCart("CART.A8K", ASCII8k);
+    AutoProgramCart("CART.A16", ASCII16k);
+    AutoProgramCart("CART.N16", NEO16);
+    AutoProgramCart("CART.N8K", NEO8);
 
     menu.FileIndexPage = 1;
     strcpy ((char *)menu.folder, "");
