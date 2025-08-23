@@ -4,6 +4,7 @@
 #include "set_memory_split.h"
 #include "scc.h"
 #include "MSXTerminal.h"
+#include "usb_disk.h"
 
 extern CartType type;
 
@@ -13,6 +14,7 @@ int main (void) {
     SystemCoreClockUpdate();
     Delay_Init();
     GPIO_Config();
+    USB_Initialization();
     Init_Cart();
 
     if (type == MSXTERMINAL) {

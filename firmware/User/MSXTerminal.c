@@ -21,7 +21,6 @@ void Init_MSXTerminal (void) {
     initBuffer (&scb);
     initMiniBuffer (&icb);
 
-
     while (enableTerminal == 0) { };
 
     menu.Filename = (uint8_t *)malloc (255 * sizeof (uint8_t));
@@ -42,7 +41,7 @@ void Init_MSXTerminal (void) {
     appendString (&scb, " ");
     appendString (&scb, FIRMWARE_VERSION_STRING);
     NewLine();
-    USB_Initialization();
+
     appendString (&scb, "Insert USB.");
     NewLine();
     NewLine();

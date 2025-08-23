@@ -37,6 +37,7 @@ DSTATUS disk_status (
 DSTATUS disk_initialize (
     BYTE pdrv /* Physical drive nmuber to identify the drive */
 ) {
+
     ClearUSB();
     uint8_t res = USBH_PreDeal();
     if (res == 0 || res == 0xFF) {
