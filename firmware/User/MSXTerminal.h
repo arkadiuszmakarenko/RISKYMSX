@@ -12,6 +12,7 @@ typedef enum page {
 } MenuType;
 
 #define FILE_ARRAY_SIZE 20
+#define MAX_DIR_DEPTH 60
 
 typedef struct TerminalPageState {
     MenuType pageName;
@@ -19,6 +20,8 @@ typedef struct TerminalPageState {
     uint32_t FileIndex;
     uint32_t FileIndexSize;
     uint32_t FileIndexPage;
+    uint16_t FileOffsetStack[MAX_DIR_DEPTH]; // stores file index selected when entering a directory (indexed by directory depth)
+    uint8_t  DirDepth;                       // current directory depth
     uint32_t CartTypeIndex;
     uint8_t *folder;
     FileEntry *FileArray[FILE_ARRAY_SIZE];
