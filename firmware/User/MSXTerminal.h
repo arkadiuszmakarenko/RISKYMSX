@@ -11,6 +11,8 @@ typedef enum page {
 
 } MenuType;
 
+#define FILE_ARRAY_SIZE 20
+
 typedef struct TerminalPageState {
     MenuType pageName;
 
@@ -19,7 +21,7 @@ typedef struct TerminalPageState {
     uint32_t FileIndexPage;
     uint32_t CartTypeIndex;
     uint8_t *folder;
-    FileEntry *FileArray[20];
+    FileEntry *FileArray[FILE_ARRAY_SIZE];
     uint8_t *Filename;
 } MenuState;
 

@@ -50,7 +50,7 @@ void Init_MSXTerminal (void) {
     menu.Filename = (uint8_t *)malloc (255 * sizeof (uint8_t));
     menu.folder = (uint8_t *)malloc (255 * sizeof (uint8_t));
 
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < FILE_ARRAY_SIZE; i++) {
         menu.FileArray[i] = (FileEntry *)malloc (sizeof (FileEntry));
     }
     ClearScreen();
@@ -99,7 +99,7 @@ void PrintMainMenu (int page) {
     menu.pageName = MAIN;
     menu.FileIndex = 0;
     ClearScreen();
-    menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
+    menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, FILE_ARRAY_SIZE, page);
 
 
     appendString (&scb, " ");
@@ -293,7 +293,7 @@ void ProcessMSXTerminal (void) {
         switch (menu.pageName) {
         case MAIN:
             if (key == 0x1C) {
-                if (menu.FileIndexSize < 20)
+                if (menu.FileIndexSize < FILE_ARRAY_SIZE)
                     return;
                 menu.FileIndexPage++;
                 PrintMainMenu (menu.FileIndexPage);
