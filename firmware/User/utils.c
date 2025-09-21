@@ -139,10 +139,10 @@ int strToInt (const char *str) {
     return result;
 }
 
-int listFiles (uint8_t folder[255], FileEntry *FileArray[20], int page) {
+int listFiles (uint8_t folder[255], FileEntry *FileArray[], int FileArraySize, int page) {
     DIR dir;
     FILINFO fno;
-    int firstItem = (page - 1) * 20;
+    int firstItem = (page - 1) * FileArraySize;
     int size = 0;
     int idx = 0;
     FRESULT fres;
@@ -171,8 +171,8 @@ int listFiles (uint8_t folder[255], FileEntry *FileArray[20], int page) {
         idx++;
     }
 
-    // Collect up to 20 entries for this page
-    while (size < 20) {
+    // Collect up to FileArraySize entries for this page
+    while (size < FileArraySize) {
         fres = f_readdir (&dir, &fno);
         if (fres != FR_OK || fno.fname[0] == 0) {
             break;

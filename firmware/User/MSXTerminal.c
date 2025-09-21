@@ -17,18 +17,65 @@ uint32_t volatile enableTerminal = 0;
 int PointerX = 1;
 int PointerY = 1;
 
+FATFS fs;
+void MountFilesystem(void) {
+    FRESULT fres;
+
+    // Mount the filesystem
+    do {
+        fres = f_mount (&fs, "", 1);
+        if (fres != FR_OK) {
+            Delay_Ms (500);
+        }
+    } while (fres != FR_OK);
+}
+
+void AutoProgramCart(char *Filename, CartType cartType) {
+    FRESULT fres;
+    FILINFO fno;
+
+    // auto program
+    fres = f_stat (Filename, &fno);
+    if (fres == FR_OK) {
+        ProgramCart (cartType, Filename, "/");
+    }
+}
+
+void InitFileOffsetStack (void) {
+    menu.DirDepth = 0;
+    memset(menu.FileOffsetStack, 0, sizeof(menu.FileOffsetStack));
+}
+
+void StoreFileOffset (uint16_t fileOffset) {
+    menu.FileOffsetStack[menu.DirDepth] = fileOffset;
+}
+
+uint16_t LoadFileOffset (void) {
+    return menu.FileOffsetStack[menu.DirDepth];
+}
+
+uint16_t CalcCurrFileOffset (void) {
+    return ((menu.FileIndexPage-1) * FILE_ARRAY_SIZE) + menu.FileIndex;
+}
+
+void StoreCurrFileOffset (void) {
+    StoreFileOffset(CalcCurrFileOffset());
+}
+
 void Init_MSXTerminal (void) {
     initBuffer (&scb);
     initMiniBuffer (&icb);
 
     while (enableTerminal == 0) { };
 
+    // XXX maybe check malloc failures
     menu.Filename = (uint8_t *)malloc (255 * sizeof (uint8_t));
     menu.folder = (uint8_t *)malloc (255 * sizeof (uint8_t));
 
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < FILE_ARRAY_SIZE; i++) {
         menu.FileArray[i] = (FileEntry *)malloc (sizeof (FileEntry));
     }
+    InitFileOffsetStack();
     ClearScreen();
 
     GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
@@ -46,67 +93,19 @@ void Init_MSXTerminal (void) {
     NewLine();
     NewLine();
 
-    FATFS fs;
-    FRESULT fres;
-    FILINFO fno;
-    // Mount the filesystem
-    do {
-        fres = f_mount (&fs, "", 1);
-        if (fres != FR_OK) {
-            Delay_Ms (500);
-        }
-    } while (fres != FR_OK);
+    MountFilesystem();
 
-    // auto program
-    fres = f_stat ("CART.R16", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ROM16k, "CART.R16", "/");
-    }
-
-    fres = f_stat ("CART.R32", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ROM32k, "CART.R32", "/");
-    }
-
-    fres = f_stat ("CART.R48", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ROM48k, "CART.R48", "/");
-    }
-
-    fres = f_stat ("CART.KO4", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (KonamiWithoutSCC, "CART.KO4", "/");
-    }
-
-    fres = f_stat ("CART.KO5", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (KonamiWithSCC, "CART.KO5", "/");
-    }
-
-    fres = f_stat ("CART.KD5", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (KonamiWithSCCNOSCC, "CART.KD5", "/");
-    }
-
-    fres = f_stat ("CART.A8K", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ASCII8k, "CART.A8K", "/");
-    }
-
-    fres = f_stat ("CART.A16", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (ASCII16k, "CART.A16", "/");
-    }
-
-    fres = f_stat ("CART.N16", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (NEO16, "CART.N16", "/");
-    }
-
-    fres = f_stat ("CART.N8K", &fno);
-    if (fres == FR_OK) {
-        ProgramCart (NEO8, "CART.N8K", "/");
-    }
+    // auto program ROMS
+    AutoProgramCart("CART.R16", ROM16k);
+    AutoProgramCart("CART.R32", ROM32k);
+    AutoProgramCart("CART.R48", ROM48k);
+    AutoProgramCart("CART.KO4", KonamiWithoutSCC);
+    AutoProgramCart("CART.KO5", KonamiWithSCC);
+    AutoProgramCart("CART.KD5", KonamiWithSCCNOSCC);
+    AutoProgramCart("CART.A8K", ASCII8k);
+    AutoProgramCart("CART.A16", ASCII16k);
+    AutoProgramCart("CART.N16", NEO16);
+    AutoProgramCart("CART.N8K", NEO8);
 
     menu.FileIndexPage = 1;
     strcpy ((char *)menu.folder, "");
@@ -119,12 +118,28 @@ void PrintMainMenu (int page) {
     uint8_t FileNameSize[5] = {0x20, 0x20, 0x20, 0x20, 0x20};
 
     ClearScreen();
-    ResetPointer();
-    menu.pageName = MAIN;
-    menu.FileIndex = 0;
-    ClearScreen();
-    menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, page);
 
+    menu.pageName = MAIN;
+    if (!page) {
+        // a zero page means we need to calculate the file page and file index from
+        // the offset stored at the top of the file offset stack
+        uint16_t fileOffset = LoadFileOffset();
+        menu.FileIndexPage = (fileOffset / FILE_ARRAY_SIZE) + 1;
+        menu.FileIndex = fileOffset % FILE_ARRAY_SIZE;
+        PointerY = 1 + menu.FileIndex;
+    } else {
+        // non-zero page means start at first file index of that page
+        menu.FileIndexPage = page;
+        menu.FileIndex = 0;
+        ResetPointer();
+        StoreCurrFileOffset();
+    }
+    menu.FileIndexSize = listFiles (menu.folder, menu.FileArray, FILE_ARRAY_SIZE, menu.FileIndexPage);
+    if (menu.FileIndex >= menu.FileIndexSize) {
+        // if for some reason our file index is out of bounds, go to first file of current page
+        menu.FileIndex = 0;
+        StoreCurrFileOffset();
+    }
 
     appendString (&scb, " ");
     appendString (&scb, FIRMWARE_VERSION_STRING);
@@ -229,7 +244,6 @@ void PrintMapperMenu() {
 }
 
 void ChangeMapperMenu() {
-    ResetPointer();
     PointerX = 1;
     PointerY = 4;
     MovePointer (PointerX, PointerY);
@@ -274,86 +288,93 @@ void ProcessMSXTerminal (void) {
 
     if (popmini (&icb, &key) == 0) {
         flushBuffer (&icb);
-        if (key == 0x1B) {  // handle ESC
-
-            ClearScreen();
-            appendString (&scb, "Insert USB.");
-            menu.FileIndexPage = 1;
-            strcpy ((char *)menu.folder, "");
-            FRESULT fres;
-            FATFS fs;
-            do {
-                fres = f_mount (&fs, "", 1);
-                if (fres != FR_OK) {
-                    Delay_Ms (500);
-                }
-            } while (fres != FR_OK);
-            flushBuffer (&icb);
-            PrintMainMenu (menu.FileIndexPage);
-        }
-
-        if (key == 0x08) {
-            // Remove last section from menu.folder (go up one directory)
-            size_t len = strlen ((char *)menu.folder);
-            if (len > 0) {
-                // Remove trailing slash if present
-                if (menu.folder[len - 1] == '/' && len > 1) {
-                    menu.folder[len - 1] = '\0';
-                    len--;
-                }
-                // Find last slash
-                char *lastSlash = strrchr ((char *)menu.folder, '/');
-                if (lastSlash != NULL) {
-                    // If not root, cut after last slash
-                    if (lastSlash == (char *)menu.folder) {
-                        // Go to root "/"
-                        menu.folder[1] = '\0';
-                    } else {
-                        *lastSlash = '\0';
-                    }
-                } else {
-                    // No slash, go to empty (root)
-                    menu.folder[0] = '\0';
-                }
-            }
-            menu.FileIndexPage = 1;
-            ClearScreen();
-            PrintMainMenu (menu.FileIndexPage);
-        }
-
         switch (menu.pageName) {
         case MAIN:
-            if (key == 0x1C) {
-                if (menu.FileIndexSize < 20)
-                    return;
-                menu.FileIndexPage++;
+            // ESC
+            if (key == 0x1B) {
+                ClearScreen();
+                appendString (&scb, "Insert USB.");
+                InitFileOffsetStack();
+                menu.FileIndexPage = 1;
+                strcpy ((char *)menu.folder, "");
+                MountFilesystem();
+                flushBuffer (&icb);
                 PrintMainMenu (menu.FileIndexPage);
             }
+            // backspace
+            if (key == 0x08) {
+                // Remove last section from menu.folder (go up one directory)
+                size_t len = strlen ((char *)menu.folder);
+                if (len > 0) {
+                    // Remove trailing slash if present
+                    if (menu.folder[len - 1] == '/' && len > 1) {
+                        menu.folder[len - 1] = '\0';
+                        len--;
+                    }
+                    // Find last slash
+                    char *lastSlash = strrchr ((char *)menu.folder, '/');
+                    if (lastSlash != NULL) {
+                        // If not root, cut after last slash
+                        if (lastSlash == (char *)menu.folder) {
+                            // Go to root "/"
+                            menu.folder[1] = '\0';
+                        } else {
+                            *lastSlash = '\0';
+                        }
+                    } else {
+                        // No slash, go to empty (root)
+                        menu.folder[0] = '\0';
+                    }
+                }
+                int page;
+                if (menu.DirDepth > 0) {
+                    menu.DirDepth--;
+                    page = 0; // use page and index derived from file offset stack
+                } else {
+                    page = 1; // use first page for root dir
+                }
+                ClearScreen();
+                MovePointer (0xFF, 0xFF);
+                PrintMainMenu (page);
+            }
+            // cursor right
+            if (key == 0x1C) {
+                if (menu.FileIndexSize < FILE_ARRAY_SIZE)
+                    return;
+                menu.FileIndexPage++;
+                MovePointer (0xFF, 0xFF);
+                PrintMainMenu (menu.FileIndexPage);
+            }
+            // cursor left
             if (key == 0x1D) {
                 if (menu.FileIndexPage == 1)
                     return;
                 menu.FileIndexPage--;
+                MovePointer (0xFF, 0xFF);
                 PrintMainMenu (menu.FileIndexPage);
             }
-
+            // cursor up
             if (key == 0x1E) {
                 if (menu.FileIndex != 0) {
                     menu.FileIndex--;
                     CursorUp();
+                    StoreCurrFileOffset();
                 }
             }
-
-            if (key == 0x1F) {
+            // cursor down
+            if (key == 0x1F && menu.FileIndexSize > 0) {
                 if (menu.FileIndex == (menu.FileIndexSize - 1))
                     return;
                 menu.FileIndex++;
                 CursorDown();
+                StoreCurrFileOffset();
             }
-
-            if (key == 0x0D) {
+            // enter
+            if (key == 0x0D && menu.FileIndexSize > 0) {
                 menu.CartTypeIndex = 0;
                 strcpy ((char *)menu.Filename, (char *)menu.FileArray[menu.FileIndex]->name);
                 ClearScreen();
+                MovePointer (0xFF, 0xFF);
 
                 if (!menu.FileArray[menu.FileIndex]->isDir) {
                     PrintMapperMenu();
@@ -368,13 +389,15 @@ void ProcessMSXTerminal (void) {
                     strcat (newFolder, (char *)menu.FileArray[menu.FileIndex]->name);
                     strcat (newFolder, "/");
                     strcpy ((char *)menu.folder, newFolder);
+                    StoreCurrFileOffset();
+                    if (menu.DirDepth < MAX_DIR_DEPTH-1)
+                        menu.DirDepth++;
                     menu.FileIndexPage = 1;
-                    ClearScreen();
                     PrintMainMenu (menu.FileIndexPage);
                     return;
                 }
             }
-
+            // "1" change mapper
             if (key == 0x31) {
                 menu.CartTypeIndex = 0;
                 menu.FileIndex = 0;
@@ -382,26 +405,29 @@ void ProcessMSXTerminal (void) {
                 menu.pageName = CHANGEMAPPER;
                 ChangeMapperMenu();
             }
-
-
             break;
 
         case MAPPER:
-
+            // ESC
+            if (key == 0x1B) {
+                MovePointer (0xFF, 0xFF);
+                PrintMainMenu (0);
+            }
+            // cursor up
             if (key == 0x1E) {
                 if (menu.CartTypeIndex != 0) {
                     menu.CartTypeIndex--;
                     CursorUp();
                 }
             }
-
+            // cursor down
             if (key == 0x1F) {
                 if (menu.CartTypeIndex != 9) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
             }
-
+            // enter
             if (key == 0x0D) {
                 ClearScreen();
                 MovePointer (0xFF, 0xFF);
@@ -421,20 +447,26 @@ void ProcessMSXTerminal (void) {
             break;
 
         case CHANGEMAPPER:
+            // ESC
+            if (key == 0x1B) {
+                MovePointer (0xFF, 0xFF);
+                PrintMainMenu (0);
+            }
+            // cursor up
             if (key == 0x1E) {
                 if (menu.CartTypeIndex != 0) {
                     menu.CartTypeIndex--;
                     CursorUp();
                 }
             }
-
+            // cursor down
             if (key == 0x1F) {
                 if (menu.CartTypeIndex != 9) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
             }
-
+            // enter
             if (key == 0x0D) {
                 ClearScreen();
                 MovePointer (0xFF, 0xFF);
