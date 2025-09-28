@@ -441,6 +441,7 @@ void ProcessMSXTerminal (void) {
                 MovePointer (0xFF, 0xFF);
                 appendString (&scb, " Programming file:");
                 NewLine();
+                append (&scb, 0x20);
                 appendString (&scb, (char *)menu.Filename);
                 NewLine();
                 NewLine();
