@@ -225,7 +225,7 @@ void PrintMapperMenu() {
     NewLine();
     append (&scb, 0x20);
     append (&scb, 0x20);
-    appendStringUpToLen (&scb, (char *)menu.Filename, 25);
+    appendStringUpToLen (&scb, (char *)menu.Filename, 24);
     append (&scb, 0x20);
     uint32_t FileSize  = menu.FileArray[menu.FileIndex]->size_kb;
     SizeToHumanReadableSize(FileNameSize, FileSize);
