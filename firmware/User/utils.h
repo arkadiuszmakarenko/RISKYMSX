@@ -28,13 +28,14 @@ void deinitBuffer (CircularBuffer *cb);
 int append (CircularBuffer *cb, uint32_t item);
 int pop (CircularBuffer *cb, uint32_t *item);
 int popmini (CircularBuffer *cb, uint32_t *item);
+void appendStringUpToLen (CircularBuffer *cb, const char *inputString, int len);
 void appendString (CircularBuffer *cb, const char *inputString);
 int isFull (CircularBuffer *cb);
 void flushBuffer (CircularBuffer *cb);
 void waitBufferEmpty(CircularBuffer *cb) ;
 
 int strToInt (const char *str);
-void intToString (int num, char *str);
+int intToString (int num, char *str);
 
 int listFiles (uint8_t folder[64], FileEntry *FileArray[], int FileArraySize, int page);
 void CombinePath (char *dest, const char *folder, const char *filename);

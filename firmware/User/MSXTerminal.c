@@ -113,9 +113,31 @@ void Init_MSXTerminal (void) {
     PrintMainMenu (menu.FileIndexPage);
 }
 
+void SizeToHumanReadableSize(char fileSizeStr[6], uint32_t fileSize) {
+    uint32_t sizeAdjusted;
+    int len;
+
+    if (fileSize >= 1024*1024*1024) {
+        sizeAdjusted = fileSize / (1024*1024*1024);
+        len = intToString (sizeAdjusted, fileSizeStr);
+        fileSizeStr[len++] = 'G';
+    } else if (fileSize >= 1024*1024) {
+        sizeAdjusted = fileSize / (1024*1024);
+        len = intToString (sizeAdjusted, fileSizeStr);
+        fileSizeStr[len++] = 'M';
+    } else if (fileSize >= 1024) {
+        sizeAdjusted = fileSize / 1024;
+        len = intToString (sizeAdjusted, fileSizeStr);
+        fileSizeStr[len++] = 'K';
+    } else {
+        len = intToString (fileSize, fileSizeStr);
+    }
+    fileSizeStr[len] = 'B';
+    fileSizeStr[len+1] = 0;
+}
+
 void PrintMainMenu (int page) {
-    uint32_t sizeAdjusted = 0;
-    uint8_t FileNameSize[5] = {0x20, 0x20, 0x20, 0x20, 0x20};
+    uint8_t FileNameSize[6];
 
     ClearScreen();
 
@@ -170,29 +192,8 @@ void PrintMainMenu (int page) {
             appendString (&scb, "<DIR> ");
         } else {
             uint32_t FileSize = menu.FileArray[i]->size_kb;
-            if (FileSize >= 1073741824) {
-                sizeAdjusted = FileSize / 1073741824;
-                intToString (sizeAdjusted, (char *)FileNameSize);
-                FileNameSize[3] = 0x47;  // G
-                FileNameSize[4] = 0x42;  // B
-            } else if (FileSize >= 1048576) {
-                sizeAdjusted = FileSize / 1048576;
-                intToString (sizeAdjusted, (char *)FileNameSize);
-                FileNameSize[3] = 0x4D;  // M
-                FileNameSize[4] = 0x42;  // B
-            } else if (FileSize >= 1024) {
-                sizeAdjusted = FileSize / 1024;
-                intToString (sizeAdjusted, (char *)FileNameSize);
-                FileNameSize[3] = 0x4B;  // K
-                FileNameSize[4] = 0x42;  // B
-            } else {
-                intToString (FileSize, (char *)FileNameSize);
-                FileNameSize[4] = 0x42;  // B
-            }
-            // Print 5-char size
-            for (int x = 0; x < 5; x++) {
-                append (&scb, FileNameSize[x]);
-            }
+            SizeToHumanReadableSize(FileNameSize, FileSize);
+            appendString(&scb, FileNameSize);
             append (&scb, 0x20);
         }
         NewLine();
@@ -213,6 +214,8 @@ void PrintMainMenu (int page) {
 }
 
 void PrintMapperMenu() {
+    uint8_t FileNameSize[6];
+
     ResetPointer();
     menu.pageName = MAPPER;
     ClearScreen();
@@ -222,7 +225,12 @@ void PrintMapperMenu() {
     NewLine();
     append (&scb, 0x20);
     append (&scb, 0x20);
-    appendString (&scb, (char *)menu.Filename);
+    appendStringUpToLen (&scb, (char *)menu.Filename, 24);
+    append (&scb, 0x20);
+    uint32_t FileSize  = menu.FileArray[menu.FileIndex]->size_kb;
+    SizeToHumanReadableSize(FileNameSize, FileSize);
+    appendString(&scb, FileNameSize);
+
     NewLine();
     PrintMapperList();
 
@@ -433,6 +441,7 @@ void ProcessMSXTerminal (void) {
                 MovePointer (0xFF, 0xFF);
                 appendString (&scb, " Programming file:");
                 NewLine();
+                append (&scb, 0x20);
                 appendString (&scb, (char *)menu.Filename);
                 NewLine();
                 NewLine();
