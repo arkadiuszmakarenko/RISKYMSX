@@ -26,9 +26,10 @@
 void USB_Initialization (void);
 uint8_t USBH_EnumRootDevice (uint8_t usb_port);
 uint8_t USBH_PreDeal (void);
-uint8_t usb_scsi_test_unit_ready (void);
 uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size);
 uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size);
+uint8_t usb_scsi_request_sense (uint8_t *buf, uint16_t len);
+uint8_t msc_mass_storage_reset (void);
 void ClearUSB (void);
 
 #endif

@@ -11,6 +11,39 @@ uint8_t usb_out_ep;  // OUT endpoint address
 uint8_t out_tog;     // OUT endpoint toggle
 uint8_t usb_in_ep;   // IN endpoint address
 uint8_t in_tog;      // IN endpoint toggle
+static uint8_t msc_interface_number = 0; // interface number for class-specific requests
+// Send a class-specific control request over EP0
+static uint8_t msc_class_request (uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint8_t *buf, uint16_t *plen) {
+    // Build setup packet directly in USBFS_TX_Buf via pUSBFS_SetupRequest
+    pUSBFS_SetupRequest->bRequestType = bmRequestType;
+    pUSBFS_SetupRequest->bRequest = bRequest;
+    pUSBFS_SetupRequest->wValue = wValue;
+    pUSBFS_SetupRequest->wIndex = wIndex;
+    pUSBFS_SetupRequest->wLength = (plen != NULL && buf != NULL) ? *plen : 0;
+    // Use current EP0 size from RootHubDev
+    uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+    return USBFSH_CtrlTransfer (ep0, buf, plen);
+}
+
+// (Removed test helper: Get Max LUN)
+
+// Mass Storage: Bulk-Only Mass Storage Reset (bRequest=0xFF, bmRequestType=00100001b)
+uint8_t msc_mass_storage_reset (void) {
+    uint8_t rc = msc_class_request (0x21, 0xFF, 0x0000, msc_interface_number, NULL, NULL);
+    // After reset, per spec, host should clear HALT on bulk IN/OUT endpoints and reset data toggles
+    if (rc == ERR_SUCCESS) {
+        // Clear HALT (STALL) on bulk endpoints if any and reset data toggles
+        uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+        // IN endpoint has direction bit set in wIndex
+        (void)USBFSH_ClearEndpStall (ep0, (uint8_t)(0x80 | usb_in_ep));
+        Delay_Ms (2);
+        (void)USBFSH_ClearEndpStall (ep0, usb_out_ep);
+        in_tog = 0; out_tog = 0;
+        Delay_Ms (20);
+        return 0;
+    }
+    return 1;
+}
 
 // SCSI WRITE(10) command block wrapper (CBW) structure
 typedef struct {
@@ -34,13 +67,57 @@ typedef struct {
 // Helper: Send CBW
 static uint8_t usb_send_cbw (const CBW_t *cbw) {
     uint16_t plen = sizeof (CBW_t);
-    return USBFSH_SendEndpData (usb_out_ep, &out_tog, (uint8_t *)cbw, plen);
+    uint8_t res;
+    for (int tries = 0; tries < 40; tries++) {
+        res = USBFSH_SendEndpData (usb_out_ep, &out_tog, (uint8_t *)cbw, plen);
+        if (res == ERR_SUCCESS) return res;
+        // Occasionally clear HALT and reset toggle on persistent errors
+        if ((tries % 10) == 9) {
+            uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+            (void)USBFSH_ClearEndpStall (ep0, usb_out_ep);
+            out_tog = 0;
+            Delay_Ms (2);
+        }
+        Delay_Ms (1);
+    }
+    return res;
 }
 
 // Helper: Receive CSW
 static uint8_t usb_recv_csw (CSW_t *csw) {
     uint16_t plen = sizeof (CSW_t);
-    return USBFSH_GetEndpData (usb_in_ep, &in_tog, (uint8_t *)csw, &plen);
+    uint8_t res;
+    for (int tries = 0; tries < 60; tries++) {
+        res = USBFSH_GetEndpData (usb_in_ep, &in_tog, (uint8_t *)csw, &plen);
+        if (res == ERR_SUCCESS) return res;
+        if ((tries % 10) == 9) {
+            uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+            (void)USBFSH_ClearEndpStall (ep0, (uint8_t)(0x80 | usb_in_ep));
+            in_tog = 0;
+            Delay_Ms (2);
+        }
+        Delay_Ms (1);
+    }
+    return res;
+}
+
+// Helper: Bulk IN with NAK retry
+static uint8_t bulk_in_read_retry (uint8_t *buf, uint16_t *plen, int max_retries) {
+    uint8_t res;
+    int tries = 0;
+    do {
+        res = USBFSH_GetEndpData (usb_in_ep, &in_tog, buf, &plen[0]);
+        if (res == ERR_SUCCESS) return res;
+        if ((tries % 10) == 9) {
+            uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+            (void)USBFSH_ClearEndpStall (ep0, (uint8_t)(0x80 | usb_in_ep));
+            in_tog = 0;
+            Delay_Ms (2);
+        }
+        Delay_Ms (1);
+        tries++;
+    } while (tries < max_retries);
+    return res;
 }
 
 void USB_Initialization (void) {
@@ -174,8 +251,9 @@ ENUM_START:
         msc_in_ep_found = 0;
         msc_out_ep_found = 0;
         uint8_t interface_class = 0, interface_subclass = 0, interface_protocol = 0;
-        while (p < end) {
+    while (p < end) {
             if (p[1] == 0x04) {  // INTERFACE descriptor
+        // bInterfaceNumber = p[2]
                 interface_class = p[5];
                 interface_subclass = p[6];
                 interface_protocol = p[7];
@@ -184,6 +262,7 @@ ENUM_START:
                 // Check for MSC interface: class 0x08, subclass 0x06, protocol 0x50
                 if (interface_class == 0x08 && interface_subclass == 0x06 && interface_protocol == 0x50) {
                     msc_interface_found = 1;
+                    msc_interface_number = p[2];
                     //  printf ("[MSC] Mass Storage Class interface found.\r\n");
                 }
             }
@@ -284,8 +363,10 @@ void ClearUSB() {
     memset (&HostCtl[index].InterfaceNum, 0, sizeof (struct __HOST_CTL));
 }
 
-// SCSI READ CAPACITY (returns block count and block size)
-uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size) {
+// (Removed test helper: TEST UNIT READY)
+
+// Single attempt: READ CAPACITY(10)
+static uint8_t scsi_read_capacity10_once (uint32_t *block_count, uint32_t *block_size) {
     CBW_t cbw;
     CSW_t csw;
     uint8_t cap_buf[8];
@@ -306,14 +387,14 @@ uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size) {
     if (res != ERR_SUCCESS)
         return 1;
 
-    Delay_Ms (1);
+    Delay_Ms (2);
 
     plen = 8;
-    res = USBFSH_GetEndpData (usb_in_ep, &in_tog, cap_buf, &plen);
+    res = bulk_in_read_retry (cap_buf, &plen, 40);
     if (res != ERR_SUCCESS || plen != 8)
         return 2;
 
-    Delay_Ms (1);
+    Delay_Ms (2);
 
     res = usb_recv_csw (&csw);
     if (res != ERR_SUCCESS || csw.bCSWStatus != 0)
@@ -325,7 +406,63 @@ uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size) {
     return 0;
 }
 
-uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size) {
+// Single attempt: READ CAPACITY(16) fallback
+static uint8_t scsi_read_capacity16_once (uint32_t *block_count, uint32_t *block_size) {
+    CBW_t cbw; CSW_t csw; uint8_t res; uint16_t plen = 32; uint8_t cap_buf[32];
+    memset (&cbw, 0, sizeof (cbw));
+    cbw.dCBWSignature = 0x43425355;
+    cbw.dCBWTag = 0x11223366;
+    cbw.dCBWDataTransferLength = 32;
+    cbw.bmCBWFlags = 0x80;  // IN
+    cbw.bCBWLUN = 0;
+    cbw.bCBWCBLength = 16;
+    cbw.CBWCB[0] = 0x9E;    // READ CAPACITY(16)
+    cbw.CBWCB[1] = 0x10;    // Service action
+    // LBA bytes [2..9] = 0
+    cbw.CBWCB[10] = 0x00;   // Alloc length MSB
+    cbw.CBWCB[11] = 0x00;
+    cbw.CBWCB[12] = 0x00;
+    cbw.CBWCB[13] = 0x20;   // 32 bytes
+    // [14],[15] control = 0
+    res = usb_send_cbw (&cbw);
+    if (res != ERR_SUCCESS) return 1;
+    Delay_Ms (1);
+    res = bulk_in_read_retry (cap_buf, &plen, 40);
+    if (res != ERR_SUCCESS || plen < 12) return 2;
+    Delay_Ms (1);
+    res = usb_recv_csw (&csw);
+    if (res != ERR_SUCCESS || csw.bCSWStatus != 0) return 3;
+    // Parse: last LBA [0..7], block length [8..11]
+    uint32_t lba_hi = (cap_buf[0] << 24) | (cap_buf[1] << 16) | (cap_buf[2] << 8) | cap_buf[3];
+    uint32_t lba_lo = (cap_buf[4] << 24) | (cap_buf[5] << 16) | (cap_buf[6] << 8) | cap_buf[7];
+    if (lba_hi != 0) {
+        *block_count = 0xFFFFFFFF; // saturate if >32-bit
+    } else {
+        *block_count = lba_lo;
+    }
+    *block_size = (cap_buf[8] << 24) | (cap_buf[9] << 16) | (cap_buf[10] << 8) | cap_buf[11];
+    return 0;
+}
+
+// Public: READ CAPACITY with sense+reset retry and CAP16 fallback
+uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size) {
+    for (int attempt = 0; attempt < 2; attempt++) {
+        uint8_t r = scsi_read_capacity10_once (block_count, block_size);
+        if (r == 0) return 0;
+        // Attempt recovery on first failure
+        uint8_t sense[18] = {0};
+        (void)usb_scsi_request_sense (sense, sizeof(sense));
+        (void)msc_mass_storage_reset();
+        Delay_Ms (5);
+    }
+    // Fallback to READ CAPACITY(16)
+    uint8_t r16 = scsi_read_capacity16_once (block_count, block_size);
+    if (r16 == 0) return 0;
+    return 3; // status error
+}
+
+// Single attempt: READ(10) one block
+static uint8_t scsi_read_sector_once (uint32_t lba, uint8_t *buf, uint32_t block_size) {
     CBW_t cbw;
     CSW_t csw;
     uint8_t res;
@@ -391,10 +528,57 @@ uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size) {
             break;
         Delay_Ms (1);
         csw_retries++;
-    } while (csw_retries < 20);
+    } while (csw_retries < 40);
     if (res != ERR_SUCCESS || csw.bCSWStatus != 0) {
         return 3;
     }
 
     return 0;
 }
+
+// Public: READ(10) with sense+reset retry
+uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size) {
+    for (int attempt = 0; attempt < 2; attempt++) {
+        uint8_t r = scsi_read_sector_once (lba, buf, block_size);
+        if (r == 0) return 0;
+        // Recovery on first failure
+        uint8_t sense[18] = {0};
+        (void)usb_scsi_request_sense (sense, sizeof(sense));
+        (void)msc_mass_storage_reset();
+        Delay_Ms (5);
+    }
+    return 3;
+}
+
+// (Removed test helper: INQUIRY)
+
+// SCSI REQUEST SENSE
+uint8_t usb_scsi_request_sense (uint8_t *buf, uint16_t len) {
+    CBW_t cbw; CSW_t csw; uint8_t res; uint16_t plen = len;
+    memset (&cbw, 0, sizeof (cbw));
+    cbw.dCBWSignature = 0x43425355;
+    cbw.dCBWTag = 0x53454E53; // 'SENS'
+    cbw.dCBWDataTransferLength = len;
+    cbw.bmCBWFlags = 0x80;
+    cbw.bCBWLUN = 0;
+    cbw.bCBWCBLength = 6;
+    cbw.CBWCB[0] = 0x03;
+    cbw.CBWCB[4] = (uint8_t)len;
+    res = usb_send_cbw (&cbw);
+    if (res != ERR_SUCCESS) return 1;
+    Delay_Ms (1);
+    res = bulk_in_read_retry (buf, &plen, 40);
+    if (res != ERR_SUCCESS) return 2;
+    Delay_Ms (1);
+    res = usb_recv_csw (&csw);
+    if (res != ERR_SUCCESS || csw.bCSWStatus != 0) return 3;
+    return 0;
+}
+
+// (Removed test helper: MODE SENSE(6))
+
+// (Removed test helper: READ FORMAT CAPACITIES)
+
+// (Removed test helper: START/STOP UNIT)
+
+// (Removed test helper: PREVENT/ALLOW MEDIUM REMOVAL)
