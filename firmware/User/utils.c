@@ -67,13 +67,19 @@ int popmini (CircularBuffer *cb, uint32_t *item) {
     return 0;                                            // Success
 }
 
-void appendString (CircularBuffer *cb, const char *inputString) {
-    for (int i = 0; i < strlen (inputString); i++) {
+void appendStringUpToLen (CircularBuffer *cb, const char *inputString, int len) {
+    int slen = strlen(inputString);
+    len = (slen < len)?slen:len;
+    for (int i = 0; i < len; i++) {
         append (cb, inputString[i]);
     }
 }
 
-void intToString (int num, char *str) {
+void appendString (CircularBuffer *cb, const char *inputString) {
+    appendStringUpToLen(cb, inputString, strlen (inputString));
+}
+
+int intToString (int num, char *str) {
     int i = 0;
     int isNegative = 0;
 
@@ -107,6 +113,7 @@ void intToString (int num, char *str) {
         start++;
         end--;
     }
+    return i;
 }
 
 int strToInt (const char *str) {
