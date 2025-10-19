@@ -30,6 +30,45 @@
 #define MERGE2(a, b) a ## b
 #define CVTBL(tbl, cp) MERGE2(tbl, cp)
 
+/* Size-minimized ASCII-only override */
+#ifndef FFUNICODE_MINIMAL
+#define FFUNICODE_MINIMAL 1
+#endif
+
+#if FFUNICODE_MINIMAL
+#if defined(__GNUC__)
+#define OPTSIZE __attribute__((optimize("Os")))
+#else
+#define OPTSIZE
+#endif
+
+WCHAR OPTSIZE ff_oem2uni (WCHAR oem, WORD cp)
+{
+	(void)cp; /* fixed CP437 ASCII subset */
+	if (oem < 0x80) {
+		return (WCHAR)oem;
+	}
+	return 0; /* not supported */
+}
+
+WCHAR OPTSIZE ff_uni2oem (DWORD uni, WORD cp)
+{
+	(void)cp; /* fixed CP437 ASCII subset */
+	if (uni < 0x80) {
+		return (WCHAR)uni;
+	}
+	return 0; /* not supported */
+}
+
+DWORD OPTSIZE ff_wtoupper (DWORD uni)
+{
+	if (uni >= 'a' && uni <= 'z') {
+		return uni - ('a' - 'A');
+	}
+	return uni;
+}
+
+#else /* FFUNICODE_MINIMAL == 0 */
 
 /*------------------------------------------------------------------------*/
 /* Code Conversion Tables                                                 */
@@ -15589,5 +15628,7 @@ DWORD ff_wtoupper (	/* Returns up-converted code point */
 	return uni;
 }
 
+
+#endif /* FFUNICODE_MINIMAL */
 
 #endif /* #if FF_USE_LFN != 0 */

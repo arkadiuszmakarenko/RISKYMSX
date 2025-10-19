@@ -8,22 +8,16 @@
 extern CircularBuffer scb;
 
 void initBuffer (CircularBuffer *cb) {
-    cb->buffer = (uint32_t *)malloc (BUFFER_SIZE * sizeof (uint32_t));
     cb->head = 0;
     cb->tail = 0;
 }
 
 void initMiniBuffer (CircularBuffer *cb) {
-    cb->buffer = (uint32_t *)malloc (BUFFER_MINI_SIZE * sizeof (uint32_t));
     cb->head = 0;
     cb->tail = 0;
 }
 
 void deinitBuffer (CircularBuffer *cb) {
-    if (cb->buffer != NULL) {
-        free (cb->buffer);  // Free allocated memory
-        cb->buffer = NULL;  // Avoid dangling pointer
-    }
     cb->head = 0;
     cb->tail = 0;
 }

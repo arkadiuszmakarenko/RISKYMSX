@@ -20,6 +20,10 @@
 
 
 #include <string.h>
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize ("Os")
+#endif
 #include "ff.h"			/* Basic definitions and declarations of API */
 #include "diskio.h"		/* Declarations of MAI */
 

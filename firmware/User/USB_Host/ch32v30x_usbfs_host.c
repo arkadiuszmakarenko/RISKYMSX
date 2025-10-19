@@ -15,6 +15,11 @@
 /* Header File */
 #include "usb_host_config.h"
 
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+#endif
+
 /*******************************************************************************/
 /* Variable Definition */
 __attribute__ ((aligned (4))) uint8_t RxBuffer[MAX_PACKET_SIZE];  // IN, must even address
@@ -69,6 +74,10 @@ void USBFS_Host_Init (FunctionalState sta) {
         USBFSH->BASE_CTRL = USBFS_UC_RESET_SIE | USBFS_UC_CLR_ALL;
     }
 }
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 /*********************************************************************
  * @fn      USBFSH_CheckRootHubPortStatus

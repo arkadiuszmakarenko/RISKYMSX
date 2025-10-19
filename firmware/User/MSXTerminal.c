@@ -6,6 +6,11 @@
 #include "programflash.h"
 #include "version.h"
 
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+#endif
+
 
 extern CircularBuffer cb;
 CircularBuffer scb;
@@ -242,11 +247,10 @@ void PrintMapperMenu() {
 
     MoveCursor (21, 0);
 
-    uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
-    strncpy ((char *)location, (char *)menu.folder, 63);
+    char location[64];
+    strncpy (location, (char *)menu.folder, 63);
     location[63] = '\0';
-    appendString (&scb, (char *)location);
-    free (location);
+    appendString (&scb, location);
 
 
     MoveCursor (23, 0);
@@ -561,3 +565,7 @@ void ResetPointer() {
     PointerX = 1;
     PointerY = 1;
 }
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif

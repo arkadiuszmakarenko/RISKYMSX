@@ -2,8 +2,6 @@
 #define CIRCULAR_BUFFER_H
 
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 
@@ -11,7 +9,7 @@
 #define BUFFER_MINI_SIZE 16
 
 typedef struct {
-    uint32_t *buffer;
+    uint32_t buffer[BUFFER_SIZE];
     volatile uint32_t head;
     volatile uint32_t tail;
 } CircularBuffer;

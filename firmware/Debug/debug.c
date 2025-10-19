@@ -12,6 +12,11 @@
 *******************************************************************************/
 #include "debug.h"
 
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+#endif
+
 static uint8_t  p_us = 0;
 static uint16_t p_ms = 0;
 
@@ -80,6 +85,13 @@ void Delay_Ms(uint32_t n)
         ;
     SysTick->CTLR &= ~(1 << 0);
 }
+
+
+
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 
 

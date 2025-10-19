@@ -29,7 +29,7 @@ extern CircularBuffer icb;
 extern CircularBuffer cb;
 extern uint32_t enableTerminal;
 
-static unsigned char msxterm[213] = {
+static const uint8_t msxterm[213] = {
     'A',
     'B',
     '&',
