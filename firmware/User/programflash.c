@@ -172,6 +172,12 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
         FLASH_Lock_Fast();
         NewLine();
         appendString (&scb, " Done. Rebooting...");
+        NewLine();
+        NewLine();
+        appendString (&scb, " DON'T HOLD ANY KEYS!");
+
+
+        Delay_Ms (1000);
         Reset();
     } else {
         appendString (&scb, " Check sum error, programming failed");
