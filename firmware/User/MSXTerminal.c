@@ -11,11 +11,24 @@ extern CircularBuffer cb;
 CircularBuffer scb;
 CircularBuffer icb;
 MenuState menu;
-uint32_t ShortNames;
 uint32_t volatile enableTerminal = 0;
 
 int PointerX = 1;
 int PointerY = 1;
+
+// Shared mapper names for both the type display and the selection list
+static const char * const kMapperNames[10] = {
+    "Standard 16KB ROM",
+    "Standard 32KB ROM",
+    "Standard 48KB or 64KB ROM",
+    "KONAMI without SCC",
+    "KONAMI with SCC (EN)",
+    "KONAMI with SCC (DIS)",
+    "ASCII 8KB",
+    "ASCII 16KB",
+    "NEO 8KB",
+    "NEO 16KB"
+};
 
 FATFS fs;
 void MountFilesystem(void) {
@@ -68,13 +81,9 @@ void Init_MSXTerminal (void) {
 
     while (enableTerminal == 0) { };
 
-    // XXX maybe check malloc failures
-    menu.Filename = (uint8_t *)malloc (255 * sizeof (uint8_t));
-    menu.folder = (uint8_t *)malloc (255 * sizeof (uint8_t));
-
-    for (int i = 0; i < FILE_ARRAY_SIZE; i++) {
-        menu.FileArray[i] = (FileEntry *)malloc (sizeof (FileEntry));
-    }
+    // Buffers are now static in MenuState; no heap allocations
+    memset(menu.Filename, 0, sizeof(menu.Filename));
+    memset(menu.folder, 0, sizeof(menu.folder));
     InitFileOffsetStack();
     ClearScreen();
 
@@ -176,7 +185,7 @@ void PrintMainMenu (int page) {
         MoveCursor (i + 1, 2);
         // Print filename, pad with 0x20 up to 25 chars
         for (int x = 0; x < 25; x++) {
-            char c = menu.FileArray[i]->name[x];
+            char c = menu.FileArray[i].name[x];
             if (c == 0x00) {
                 // Pad the rest with 0x20
                 for (; x < 25; x++) {
@@ -188,10 +197,10 @@ void PrintMainMenu (int page) {
             }
         }
 
-        if (menu.FileArray[i]->isDir) {
+        if (menu.FileArray[i].isDir) {
             appendString (&scb, "<DIR> ");
         } else {
-            uint32_t FileSize = menu.FileArray[i]->size_kb;
+            uint32_t FileSize = menu.FileArray[i].size_kb;
             SizeToHumanReadableSize(FileNameSize, FileSize);
             appendString(&scb, FileNameSize);
             append (&scb, 0x20);
@@ -200,11 +209,10 @@ void PrintMainMenu (int page) {
     }
 
     MoveCursor (21, 0);
-    uint8_t *location = (uint8_t *)malloc (64 * sizeof (uint8_t));
-    strncpy ((char *)location, (char *)menu.folder, 63);
-    location[63] = '\0';
-    appendString (&scb, (char *)location);
-    free (location);
+    char location[64];
+    strncpy (location, (char *)menu.folder, sizeof(location)-1);
+    location[sizeof(location)-1] = '\0';
+    appendString (&scb, location);
 
     MoveCursor (23, 0);
     appendString (&scb, " ARROWS,RET,ESC,1-MAP,BKSP-..");
@@ -227,7 +235,7 @@ void PrintMapperMenu() {
     append (&scb, 0x20);
     appendStringUpToLen (&scb, (char *)menu.Filename, 24);
     append (&scb, 0x20);
-    uint32_t FileSize  = menu.FileArray[menu.FileIndex]->size_kb;
+    uint32_t FileSize  = menu.FileArray[menu.FileIndex].size_kb;
     SizeToHumanReadableSize(FileNameSize, FileSize);
     appendString(&scb, FileNameSize);
 
@@ -380,11 +388,11 @@ void ProcessMSXTerminal (void) {
             // enter
             if (key == 0x0D && menu.FileIndexSize > 0) {
                 menu.CartTypeIndex = 0;
-                strcpy ((char *)menu.Filename, (char *)menu.FileArray[menu.FileIndex]->name);
+                strcpy ((char *)menu.Filename, (char *)menu.FileArray[menu.FileIndex].name);
                 ClearScreen();
                 MovePointer (0xFF, 0xFF);
 
-                if (!menu.FileArray[menu.FileIndex]->isDir) {
+                if (!menu.FileArray[menu.FileIndex].isDir) {
                     PrintMapperMenu();
                 } else {
                     // Build new folder path by appending selected dir name to current folder
@@ -394,7 +402,7 @@ void ProcessMSXTerminal (void) {
                     if (len > 0 && newFolder[len - 1] != '/') {
                         strcat (newFolder, "/");
                     }
-                    strcat (newFolder, (char *)menu.FileArray[menu.FileIndex]->name);
+                    strcat (newFolder, (char *)menu.FileArray[menu.FileIndex].name);
                     strcat (newFolder, "/");
                     strcpy ((char *)menu.folder, newFolder);
                     StoreCurrFileOffset();
@@ -535,65 +543,18 @@ void Reset() {
 
 void PrintMapperType (CartType type) {
     append (&scb, 0x20);
-    switch (type) {
-    case ROM16k:
-        appendString (&scb, "Standard ROM 16k");
-        break;
-    case ROM32k:
-        appendString (&scb, "Standard ROM 32k");
-        break;
-    case ROM48k:
-        appendString (&scb, "Standard ROM 48k");
-        break;
-    case KonamiWithoutSCC:
-        appendString (&scb, "Konami without SCC");
-        break;
-    case KonamiWithSCC:
-        appendString (&scb, "Konami With SCC (EN)");
-        break;
-    case KonamiWithSCCNOSCC:
-        appendString (&scb, "Konami With SCC (DIS)");
-        break;
-    case ASCII8k:
-        appendString (&scb, "ASCII 8k");
-        break;
-    case ASCII16k:
-        appendString (&scb, "ASCII 16k");
-        break;
-    case NEO8:
-        appendString (&scb, "Neo 8k");
-        break;
-    case NEO16:
-        appendString (&scb, "Neo 16k");
-        break;
-    default:
+    if ((unsigned)type < (sizeof(kMapperNames)/sizeof(kMapperNames[0]))) {
+        appendString (&scb, kMapperNames[type]);
+    } else {
         appendString (&scb, "Mapper not recognized.");
-        break;
     }
 }
 
 void PrintMapperList() {
-    MoveCursor (4, 2);
-    appendString (&scb, "Standard 16KB ROM");
-    MoveCursor (5, 2);
-    appendString (&scb, "Standard 32KB ROM");
-    MoveCursor (6, 2);
-    appendString (&scb, "Standard 48KB or 64KB ROM");
-    MoveCursor (7, 2);
-    appendString (&scb, "KONAMI without SCC");
-    MoveCursor (8, 2);
-    appendString (&scb, "KONAMI with SCC (EN)");
-    MoveCursor (9, 2);
-    appendString (&scb, "KONAMI with SCC (DIS)");
-    MoveCursor (10, 2);
-    appendString (&scb, "ASCII 8KB");
-    MoveCursor (11, 2);
-    appendString (&scb, "ASCII 16KB");
-    MoveCursor (12, 2);
-    appendString (&scb, "NEO 8KB");
-    MoveCursor (13, 2);
-    appendString (&scb, "NEO 16KB");
-
+    for (int i = 0; i < 10; ++i) {
+        MoveCursor (4 + i, 2);
+        appendString (&scb, kMapperNames[i]);
+    }
     MoveCursor (23, 0);
 }
 

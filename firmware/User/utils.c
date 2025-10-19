@@ -146,22 +146,13 @@ int strToInt (const char *str) {
     return result;
 }
 
-int listFiles (uint8_t folder[255], FileEntry *FileArray[], int FileArraySize, int page) {
+int listFiles (uint8_t folder[256], FileEntry FileArray[], int FileArraySize, int page) {
     DIR dir;
     FILINFO fno;
     int firstItem = (page - 1) * FileArraySize;
     int size = 0;
     int idx = 0;
     FRESULT fres;
-
-    // Mount the filesystem (assume drive number 0)
-    FATFS fs;
-    do {
-        fres = f_mount (&fs, "", 1);
-        if (fres != FR_OK) {
-            Delay_Ms (20);
-        }
-    } while (fres != FR_OK);
 
     fres = f_opendir (&dir, (char *)folder);
     if (fres != FR_OK) {
@@ -184,13 +175,13 @@ int listFiles (uint8_t folder[255], FileEntry *FileArray[], int FileArraySize, i
         if (fres != FR_OK || fno.fname[0] == 0) {
             break;
         }
-        strncpy ((char *)FileArray[size]->name, fno.fname, 255);
+        strncpy ((char *)FileArray[size].name, fno.fname, 255);
         if (fno.fattrib & AM_DIR) {
-            FileArray[size]->isDir = 1;
-            FileArray[size]->size_kb = 0;
+            FileArray[size].isDir = 1;
+            FileArray[size].size_kb = 0;
         } else {
-            FileArray[size]->isDir = 0;
-            FileArray[size]->size_kb = fno.fsize;
+            FileArray[size].isDir = 0;
+            FileArray[size].size_kb = fno.fsize;
         }
         size++;
     }

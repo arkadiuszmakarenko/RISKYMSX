@@ -23,9 +23,9 @@ typedef struct TerminalPageState {
     uint16_t FileOffsetStack[MAX_DIR_DEPTH]; // stores file index selected when entering a directory (indexed by directory depth)
     uint8_t  DirDepth;                       // current directory depth
     uint32_t CartTypeIndex;
-    uint8_t *folder;
-    FileEntry *FileArray[FILE_ARRAY_SIZE];
-    uint8_t *Filename;
+    uint8_t folder[256];
+    FileEntry FileArray[FILE_ARRAY_SIZE];
+    uint8_t Filename[256];
 } MenuState;
 
 void Init_MSXTerminal (void);
