@@ -37,16 +37,22 @@ INCLUDES := \
   -I$(FIRMWARE_DIR)/User/USB_Host \
   -I$(FIRMWARE_DIR)/User/FATFS
 
-# Compilation flags (from IDE)
+# Compilation flags (optimized for smallest size)
 COMMON_WARN   := -Wunused -Wuninitialized
-COMMON_OPTS   := -fmax-errors=20 -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-common -std=gnu99
+COMMON_OPTS   := -fmax-errors=20 -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-common -std=gnu99 \
+                 -flto -fno-fat-lto-objects -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables \
+                 -fno-stack-protector -fno-ident -fmerge-all-constants -fno-math-errno -ffast-math \
+                 -fno-exceptions -fvisibility=hidden
 COMPILE_FLAGS := $(CPUFLAGS) $(COMMON_OPTS) $(COMMON_WARN)
-CFLAGS        := $(COMPILE_FLAGS) $(INCLUDES) -Wa,-adhlns="$@.lst" -v -MMD -MP
-ASFLAGS       := $(CPUFLAGS) -x assembler-with-cpp -I$(FIRMWARE_DIR)/Startup -I$(FIRMWARE_DIR)/User -v -MMD -MP
+CFLAGS        := $(COMPILE_FLAGS) $(INCLUDES) -Wa,-adhlns="$@.lst" -MMD -MP
+ASFLAGS       := $(CPUFLAGS) -x assembler-with-cpp -I$(FIRMWARE_DIR)/Startup -I$(FIRMWARE_DIR)/User -MMD -MP
 
-# Linker script and flags (from IDE)
+# Linker script and flags (optimized for smallest size)
 LDSCRIPT := $(FIRMWARE_DIR)/Ld/Link.ld
-LDFLAGS  := -T $(LDSCRIPT) -nostartfiles -Xlinker --gc-sections -Wl,-Map,"$(OUTDIR)/$(PROJECT).map" --specs=nano.specs --specs=nosys.specs
+LDFLAGS  := -T $(LDSCRIPT) -nostartfiles -Xlinker --gc-sections -Wl,-Map,"$(OUTDIR)/$(PROJECT).map" \
+            --specs=nano.specs --specs=nosys.specs -flto -Wl,--strip-all -Wl,--strip-debug \
+            -Wl,--discard-all -Wl,--no-keep-memory -Wl,--reduce-memory-overheads \
+            -Wl,--sort-common -Wl,--sort-section=alignment -Wl,--compress-debug-sections=zlib
 
 # Sources (explicit lists based on IDE makefiles to avoid unintended extras)
 CORE_SRCS   := $(FIRMWARE_DIR)/Core/core_riscv.c
@@ -110,6 +116,7 @@ help:
 	@echo "  clean        - Remove all build artifacts"
 	@echo "  version      - Show firmware version"
 	@echo "  size         - Show binary size information"
+	@echo "  size-analyze - Detailed size analysis and optimization report"
 	@echo "  list         - Generate disassembly listing"
 	@echo "  program      - Program binary to WCH chip via ISP (USB bootloader)"
 	@echo "  flash        - Program binary to WCH chip via OpenOCD (SWD/JTAG)"
@@ -125,6 +132,8 @@ help:
 	@echo "Build output:"
 	@echo "  Build files: $(OUTDIR)/"
 	@echo "  Final binary: $(PROJECT)_$(FIRMWARE_VERSION).bin"
+	@echo ""
+	@echo "Note: Build optimized for smallest binary size"
 
 # Link
 $(OUTDIR)/$(PROJECT).elf: $(OBJS) | $(OUTDIR)
@@ -135,7 +144,9 @@ $(OUTDIR)/$(PROJECT).elf: $(OBJS) | $(OUTDIR)
 post-build: $(OUTDIR)/$(PROJECT).hex $(OUTDIR)/$(PROJECT).bin $(OUTDIR)/$(PROJECT).lst $(OUTDIR)/$(PROJECT).siz copy-binary
 
 $(OUTDIR)/$(PROJECT).bin: $(OUTDIR)/$(PROJECT).elf | $(OUTDIR)
-	$(OBJCOPY) -O binary $< $@
+	$(OBJCOPY) -O binary -S --remove-section=.comment --remove-section=.note* \
+		--remove-section=.debug* --remove-section=.eh_frame* $< $@
+	@echo "Optimized binary size: $$(stat -c%s $@) bytes"
 
 $(OUTDIR)/$(PROJECT).hex: $(OUTDIR)/$(PROJECT).elf | $(OUTDIR)
 	$(OBJCOPY) -O ihex $< $@
@@ -175,11 +186,26 @@ clean:
 -include $(DEPS)
 
 # Convenience targets
-.PHONY: size list version
+.PHONY: size list version size-analyze
 size: $(OUTDIR)/$(PROJECT).siz
 list: $(OUTDIR)/$(PROJECT).lst
 version:
 	@echo "Firmware version: $(FIRMWARE_VERSION)"
+
+# Detailed size analysis
+size-analyze: $(OUTDIR)/$(PROJECT).elf $(OUTDIR)/$(PROJECT).bin
+	@echo "=== Size Analysis ==="
+	@echo "ELF file size: $$(stat -c%s $(OUTDIR)/$(PROJECT).elf) bytes"
+	@echo "Binary file size: $$(stat -c%s $(OUTDIR)/$(PROJECT).bin) bytes"
+	@echo ""
+	@echo "=== Section sizes (from ELF) ==="
+	$(SIZE) -A $(OUTDIR)/$(PROJECT).elf
+	@echo ""
+	@echo "=== Memory usage summary ==="
+	$(SIZE) -B $(OUTDIR)/$(PROJECT).elf
+	@echo ""
+	@echo "=== Top 10 largest symbols ==="
+	@$(OBJDUMP) -t $(OUTDIR)/$(PROJECT).elf | sort -k4 -n | tail -10
 
 # Programming targets
 .PHONY: program flash erase erase-flash
