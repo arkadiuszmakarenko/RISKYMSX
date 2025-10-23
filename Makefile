@@ -19,6 +19,10 @@ OBJDUMP  := $(TOOLCHAIN_PREFIX)-objdump
 SIZE     := $(TOOLCHAIN_PREFIX)-size
 RM       := rm -rf
 
+# WCH Programming tools
+WCH_OPENOCD := /usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/openocd
+WCH_ISP := wchisptool
+
 # CPU/ABI flags (from IDE)
 ARCH := rv32imacxw
 ABI  := ilp32
@@ -102,12 +106,21 @@ all: $(OUTDIR)/$(PROJECT).elf post-build
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  all       - Build the entire project (default)"
-	@echo "  clean     - Remove all build artifacts"
-	@echo "  version   - Show firmware version"
-	@echo "  size      - Show binary size information"
-	@echo "  list      - Generate disassembly listing"
-	@echo "  help      - Show this help message"
+	@echo "  all          - Build the entire project (default)"
+	@echo "  clean        - Remove all build artifacts"
+	@echo "  version      - Show firmware version"
+	@echo "  size         - Show binary size information"
+	@echo "  list         - Generate disassembly listing"
+	@echo "  program      - Program binary to WCH chip via ISP (USB bootloader)"
+	@echo "  flash        - Program binary to WCH chip via OpenOCD (SWD/JTAG)"
+	@echo "  erase        - Erase chip via ISP (USB bootloader)"
+	@echo "  erase-flash  - Erase chip via OpenOCD (SWD/JTAG)"
+	@echo "  upload       - Build and program via ISP in one step"
+	@echo "  full-program - Build, erase and program via ISP"
+	@echo "  full-flash   - Build, erase and program via OpenOCD"
+	@echo "  test-program - Test programming setup without programming"
+	@echo "  program-help - Show detailed programming instructions"
+	@echo "  help         - Show this help message"
 	@echo ""
 	@echo "Build output:"
 	@echo "  Build files: $(OUTDIR)/"
@@ -167,3 +180,133 @@ size: $(OUTDIR)/$(PROJECT).siz
 list: $(OUTDIR)/$(PROJECT).lst
 version:
 	@echo "Firmware version: $(FIRMWARE_VERSION)"
+
+# Programming targets
+.PHONY: program flash erase erase-flash
+
+# Program using WCH ISP tool (USB bootloader mode)
+program: $(OUTDIR)/$(PROJECT).bin
+	@echo "Programming $(PROJECT)_$(FIRMWARE_VERSION).bin to WCH chip via ISP..."
+	@if [ -f "$(WCH_ISP)" ]; then \
+		$(WCH_ISP) -f $(OUTDIR)/$(PROJECT).bin; \
+	elif command -v wchisptool >/dev/null 2>&1; then \
+		wchisptool -f $(OUTDIR)/$(PROJECT).bin; \
+	else \
+		echo "Error: WCH ISP tool not found. Please install wchisptool or check path."; \
+		echo "Make sure the chip is in bootloader mode (hold BOOT button while resetting)."; \
+		exit 1; \
+	fi
+
+# Program using OpenOCD (SWD/JTAG interface)
+flash: $(OUTDIR)/$(PROJECT).elf
+	@echo "Programming $(PROJECT)_$(FIRMWARE_VERSION).bin to WCH chip via OpenOCD..."
+	@if [ -f "$(WCH_OPENOCD)" ]; then \
+		$(WCH_OPENOCD) -f /usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/wch-riscv.cfg \
+		-c "program $(OUTDIR)/$(PROJECT).elf verify reset exit"; \
+	elif command -v openocd >/dev/null 2>&1; then \
+		openocd -f /usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/wch-riscv.cfg \
+		-c "program $(OUTDIR)/$(PROJECT).elf verify reset exit"; \
+	else \
+		echo "Error: OpenOCD not found. Please install OpenOCD or check path."; \
+		echo "Make sure WCH-Link or compatible debugger is connected."; \
+		exit 1; \
+	fi
+
+# Erase chip using WCH ISP tool (USB bootloader mode)
+erase:
+	@echo "Erasing WCH chip via ISP..."
+	@if [ -f "$(WCH_ISP)" ]; then \
+		$(WCH_ISP) -e; \
+	elif command -v wchisptool >/dev/null 2>&1; then \
+		wchisptool -e; \
+	else \
+		echo "Error: WCH ISP tool not found. Please install wchisptool or check path."; \
+		echo "Make sure the chip is in bootloader mode (hold BOOT button while resetting)."; \
+		exit 1; \
+	fi
+
+# Erase chip using OpenOCD (SWD/JTAG interface)
+erase-flash:
+	@echo "Erasing WCH chip via OpenOCD..."
+	@if [ -f "$(WCH_OPENOCD)" ]; then \
+		$(WCH_OPENOCD) -f /usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/wch-riscv.cfg \
+		-c "init; reset halt; flash erase_sector 0 0 last; exit"; \
+	elif command -v openocd >/dev/null 2>&1; then \
+		openocd -f /usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/wch-riscv.cfg \
+		-c "init; reset halt; flash erase_sector 0 0 last; exit"; \
+	else \
+		echo "Error: OpenOCD not found. Please install OpenOCD or check path."; \
+		echo "Make sure WCH-Link or compatible debugger is connected."; \
+		exit 1; \
+	fi
+
+# Show programming help
+.PHONY: program-help
+program-help:
+	@echo "Programming options:"
+	@echo ""
+	@echo "1. USB ISP Programming (make program):"
+	@echo "   - Put chip in bootloader mode (hold BOOT button while resetting)"
+	@echo "   - Connect via USB"
+	@echo "   - Run: make program"
+	@echo ""
+	@echo "2. SWD/JTAG Programming (make flash):"
+	@echo "   - Connect WCH-Link or compatible debugger"
+	@echo "   - No special mode required"
+	@echo "   - Run: make flash"
+	@echo ""
+	@echo "3. Chip Erase Options:"
+	@echo "   - USB ISP Erase: make erase (requires bootloader mode)"
+	@echo "   - SWD/JTAG Erase: make erase-flash (requires debugger)"
+	@echo ""
+	@echo "4. Manual programming:"
+	@echo "   - Use wchisptool: wchisptool -f $(PROJECT)_$(FIRMWARE_VERSION).bin"
+	@echo "   - Use wchisptool erase: wchisptool -e"
+	@echo "   - Use OpenOCD with your config files"
+	@echo ""
+	@echo "Note: For ISP programming, you may need to install wchisptool separately"
+	@echo "      You can download it from WCH official website"
+
+# Build and program in one step
+.PHONY: upload
+upload: all program
+	@echo "Build and programming completed!"
+
+# Erase and program in one step
+.PHONY: full-program
+full-program: all erase program
+	@echo "Full erase and programming completed!"
+
+# Erase and flash in one step (OpenOCD)
+.PHONY: full-flash
+full-flash: all erase-flash flash
+	@echo "Full erase and flash programming completed!"
+
+# Test programming setup without actually programming
+.PHONY: test-program
+test-program:
+	@echo "Testing programming setup..."
+	@echo "Checking for programming tools:"
+	@if [ -f "$(WCH_OPENOCD)" ]; then \
+		echo "✓ WCH OpenOCD found: $(WCH_OPENOCD)"; \
+		echo "✓ Config file: /usr/share/MRS2/MRS-linux-x64/resources/app/resources/linux/components/WCH/OpenOCD/OpenOCD/bin/wch-riscv.cfg"; \
+	else \
+		echo "✗ WCH OpenOCD not found"; \
+	fi
+	@if command -v wchisptool >/dev/null 2>&1; then \
+		echo "✓ wchisptool found in PATH"; \
+	else \
+		echo "✗ wchisptool not found in PATH"; \
+	fi
+	@if [ -f "$(OUTDIR)/$(PROJECT).bin" ]; then \
+		echo "✓ Binary file ready: $(OUTDIR)/$(PROJECT).bin"; \
+	else \
+		echo "✗ Binary file not found. Run 'make' first."; \
+	fi
+	@echo ""
+	@echo "Available operations:"
+	@echo "  ✓ Programming via ISP (make program)"
+	@echo "  ✓ Programming via OpenOCD (make flash)"
+	@echo "  ✓ Chip erase via ISP (make erase)"
+	@echo "  ✓ Chip erase via OpenOCD (make erase-flash)"
+	@echo "  ✓ Full erase + program (make full-program / make full-flash)"
