@@ -59,7 +59,10 @@
 				"showDebugGDBTrace": true,
 				"saveDebugOutputToFile": false,
 				"showDebugOutputTimestamps": true
-			}
+			},
+			"isDualCoreDebug": false,
+			"dualCoreDebugRole": null,
+			"architecture": "RISC-V"
 		}
 	]
 }

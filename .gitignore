@@ -28,3 +28,21 @@ gerbers/
 cad/
 \#*.dxf
 *.lck
+
+MRS_Toolchain_Linux_x64_V210/
+
+firmware/.mrs/launch.json
+
+# Build artifacts copied to repo root
+RISKYMSXCART.bin
+
+# Build output directories
+out/
+firmware/build/
+
+# Flash script helper
+flash.sh
+
+# WCH OpenOCD config
+wch-riscv.cfg
+
