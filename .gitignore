@@ -46,3 +46,4 @@ flash.sh
 # WCH OpenOCD config
 wch-riscv.cfg
 
+build-standalone/

@@ -1,167 +1,248 @@
-# Top-level Makefile for RISKYMSX firmware
-# Builds the firmware using the existing MRS-generated makefiles under firmware/obj
-# and provides flashing via the packaged OpenOCD.
-
-# Paths
-ROOT             := $(CURDIR)
-# Location of the MRS-generated build system (auto-detected; override with SUB_BUILD_DIR)
-ifeq ($(wildcard $(ROOT)/firmware/build/makefile),)
-  SUB_BUILD_DIR_DEFAULT := $(ROOT)/firmware/build
-else
-  SUB_BUILD_DIR_DEFAULT := $(ROOT)/firmware/build
-endif
-SUB_BUILD_DIR   ?= $(SUB_BUILD_DIR_DEFAULT)
-# Where we expose/copy final artifacts for users (top-level build output)
-OUT_DIR         ?= $(ROOT)/out# Artifacts as exposed by this top-level Makefile
-ELF              := $(OUT_DIR)/RISKYMSXCART.elf
-BIN              := $(OUT_DIR)/RISKYMSXCART.bin
-HEX              := $(OUT_DIR)/RISKYMSXCART.hex
-LST              := $(OUT_DIR)/RISKYMSXCART.lst
-
-# Artifacts produced by the MRS sub-build
-OBJ_ELF          := $(SUB_BUILD_DIR)/RISKYMSXCART.elf
-OBJ_BIN          := $(SUB_BUILD_DIR)/RISKYMSXCART.bin
-OBJ_HEX          := $(SUB_BUILD_DIR)/RISKYMSXCART.hex
-OBJ_LST          := $(SUB_BUILD_DIR)/RISKYMSXCART.lst
-
-# Toolchain (RISC-V Embedded GCC12)
-TOOLCHAIN_DIR   ?= $(ROOT)/MRS_Toolchain_Linux_x64_V210/RISC-V Embedded GCC12
-GCC_BIN          := $(TOOLCHAIN_DIR)/bin
-
-# OpenOCD (kept for openocd-server and gdb targets)
-OPENOCD_ROOT    ?= $(ROOT)/MRS_Toolchain_Linux_x64_V210/OpenOCD/OpenOCD
-OPENOCD          ?= $(OPENOCD_ROOT)/bin/openocd
-OPENOCD_SCRIPTS  ?= $(OPENOCD_ROOT)/share/openocd/scripts
-# Default config for WCH-Link with CH32V30x RISC-V
-# Uses custom wch-riscv.cfg in repo root
-# Override on command line if needed: make openocd-server OPENOCD_CFG="..."
-OPENOCD_CFG     ?= -f $(ROOT)/wch-riscv.cfg
-
-# Ensure the toolchain is used by the sub-make (PATH includes spaces; this is okay)
-export PATH := $(GCC_BIN):$(PATH)
+################################################################################
+# Universal Makefile for RISKYMSX firmware (no MRS-generated files required)
+# - Discovers sources under firmware/
+# - Builds into a local build directory
+# - Keeps flash/erase helpers
+################################################################################
 
 .DEFAULT_GOAL := all
 
-.PHONY: all elf bin hex lst size clean flash erase openocd-server gdb help copy-bin list-usb
+# Paths
+ROOT       := $(CURDIR)
+BUILD      ?= build-standalone
+OUT_DIR    ?= $(ROOT)/out
 
-all: elf copy-bin
+PROJECT    := RISKYMSXCART
+ELF        := $(BUILD)/$(PROJECT).elf
+BIN        := $(BUILD)/$(PROJECT).bin
+HEX        := $(BUILD)/$(PROJECT).hex
+MAP        := $(BUILD)/$(PROJECT).map
+LST        := $(BUILD)/$(PROJECT).lst
 
-# Build via the existing makefiles then copy artifacts into $(BUILD_DIR)
-elf: $(ELF)
+# Optional: use packaged MRS toolchain if present; otherwise rely on system toolchain
+TOOLCHAIN_DIR ?= $(ROOT)/MRS_Toolchain_Linux_x64_V210/RISC-V Embedded GCC12
+TOOLCHAIN_BIN := $(TOOLCHAIN_DIR)/bin
+# Robust PATH prepend that tolerates spaces in paths
+PREPEND_PATH  := $(shell if [ -d "$(TOOLCHAIN_BIN)" ]; then printf '%s' "$(TOOLCHAIN_BIN):"; fi)
+export PATH   := $(PREPEND_PATH)$(PATH)
 
-# Ensure sub-build happens and artifacts are copied into OUT_DIR
-$(ELF): $(OBJ_ELF)
-	@mkdir -p "$(OUT_DIR)"
-	cp -f "$(OBJ_ELF)" "$(ELF)"
-	@if [ -f "$(OBJ_BIN)" ]; then cp -f "$(OBJ_BIN)" "$(BIN)"; fi
-	@if [ -f "$(OBJ_HEX)" ]; then cp -f "$(OBJ_HEX)" "$(HEX)"; fi
-	@if [ -f "$(OBJ_LST)" ]; then cp -f "$(OBJ_LST)" "$(LST)"; fi
+# Toolchain prefix
+CROSS    ?= riscv-wch-elf
+CC       := $(CROSS)-gcc
+AS       := $(CROSS)-gcc
+LD       := $(CROSS)-gcc
+OBJCOPY  := $(CROSS)-objcopy
+OBJDUMP  := $(CROSS)-objdump
+SIZE     := $(CROSS)-size
+GDB      := $(CROSS)-gdb
 
-# Trigger the MRS sub-build which creates the object artifacts
-$(OBJ_ELF):
-	@if [ ! -d "$(SUB_BUILD_DIR)" ]; then \
-		echo "ERROR: Sub-build directory '$(SUB_BUILD_DIR)' not found."; \
-		echo "Set SUB_BUILD_DIR to the MRS build folder (where makefile resides), e.g.:"; \
-		echo "  make SUB_BUILD_DIR=firmware/build"; \
-		exit 2; \
+# Linker script
+LDSCRIPT := firmware/Ld/Link.ld
+
+# Includes
+INCLUDES := \
+  -Ifirmware/Debug \
+  -Ifirmware/Core \
+  -Ifirmware/User \
+  -Ifirmware/User/USB_Host \
+  -Ifirmware/User/FATFS \
+  -Ifirmware/Peripheral/inc \
+  -Ifirmware/Startup
+
+# Flags
+ARCHFLAGS := -march=rv32imacxw -mabi=ilp32
+CWARN     := -Wunused -Wuninitialized
+CDEFS     :=
+
+CFLAGS := $(ARCHFLAGS) -msmall-data-limit=8 -msave-restore \
+  -fmax-errors=20 -Oz -flto -fno-unwind-tables -fno-asynchronous-unwind-tables \
+  -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-common \
+  -std=gnu99 $(CWARN) $(CDEFS) $(INCLUDES) -MMD -MP
+
+# .S are preprocessed by gcc automatically; keep flags conservative
+ASFLAGS := $(ARCHFLAGS) $(INCLUDES)
+
+LDFLAGS := $(ARCHFLAGS) -T $(LDSCRIPT) -nostartfiles -Wl,--gc-sections -flto \
+  -Wl,-Map,$(MAP) -Wl,--print-memory-usage --specs=nano.specs --specs=nosys.specs -Wl,-s
+
+# Source discovery (exclude this Make's build dir and any legacy firmware/build)
+FIND_EXCLUDES := \( -path $(BUILD) -o -path firmware/build \) -prune -o
+SRCS_C := $(shell find firmware $(FIND_EXCLUDES) -name '*.c' -print)
+SRCS_S := $(shell find firmware $(FIND_EXCLUDES) \( -name '*.S' -o -name '*.s' \) -print)
+
+# Object paths mirror source tree under $(BUILD)/obj
+OBJS_C := $(patsubst %.c,$(BUILD)/obj/%.o,$(SRCS_C))
+OBJS_S := $(patsubst %.S,$(BUILD)/obj/%.o,$(SRCS_S))
+OBJS_S := $(patsubst %.s,$(BUILD)/obj/%.o,$(OBJS_S))
+OBJS   := $(OBJS_C) $(OBJS_S)
+DEPS   := $(OBJS:.o=.d)
+
+# Ensure directories exist
+DIRS := $(sort $(dir $(OBJS)) $(BUILD) $(OUT_DIR))
+$(DIRS):
+	@mkdir -p "$@"
+
+# ========================
+# Cartridge payload assets
+# ========================
+ASSETS_DIR     ?= assets
+FLASHCFG_SRC   ?= $(strip $(ASSETS_DIR)/flashcfg.bin)     # input config (<=256 B)
+FLASHCART_SRC  ?= $(strip $(ASSETS_DIR)/flashcart.bin)    # input cart image (<=256 KiB)
+
+CART_IMG       := $(OUT_DIR)/cart_image.bin
+FLASHCFG_PAD   := $(ASSETS_DIR)/flashcfg.bin
+FLASHCART_PAD  := $(ASSETS_DIR)/flashcart.bin
+
+# Layout (align with Link.ld MEMORY map)
+# FLASHCFG at end of internal FLASH (0x00007F00, 256 B)
+# FLASHCART starts at 0x00008000 (256 KiB window)
+FLASHCFG_OFFSET ?= 0x00007F00
+FLASHCART_OFFSET?= 0x00008000
+
+FLASHCFG_SIZE   ?= 256
+FLASHCART_SIZE  ?= 262144
+
+
+# Pad/truncate helpers (pads with 0xFF)
+$(FLASHCFG_PAD): $(FLASHCFG_SRC) | $(OUT_DIR)
+	@dd if=/dev/zero bs=1 count=$(FLASHCFG_SIZE) 2>/dev/null | tr '\000' '\377' > "$@"
+	@dd if="$(FLASHCFG_SRC)" of="$@" conv=notrunc bs=1 count=$(FLASHCFG_SIZE) 2>/dev/null
+
+$(FLASHCART_PAD): $(FLASHCART_SRC) | $(OUT_DIR)
+	@dd if=/dev/zero bs=1 count=$(FLASHCART_SIZE) 2>/dev/null | tr '\000' '\377' > "$@"
+	@dd if="$(FLASHCART_SRC)" of="$@" conv=notrunc bs=1 count=$(FLASHCART_SIZE) 2>/dev/null
+
+# Combined image (memory map relative to 0x00000000):
+#   cfg at FLASHCFG_OFFSET (0x00007F00), cart at FLASHCART_OFFSET (0x00008000)
+#   padded with 0xFF for holes
+$(CART_IMG): $(FLASHCFG_PAD) $(FLASHCART_PAD) | $(OUT_DIR)
+	@# Create a fully padded image of size FLASHCART_OFFSET + FLASHCART_SIZE
+	@dd if=/dev/zero bs=1 count=$$(( $(FLASHCART_OFFSET) + $(FLASHCART_SIZE) )) 2>/dev/null | tr '\000' '\377' > "$@"
+	@# Write cfg and cart at their offsets
+	@dd if="$(FLASHCFG_PAD)"  of="$@" bs=1 seek=$$(( $(FLASHCFG_OFFSET) ))  conv=notrunc 2>/dev/null
+	@dd if="$(FLASHCART_PAD)" of="$@" bs=1 seek=$$(( $(FLASHCART_OFFSET) )) conv=notrunc 2>/dev/null
+	@echo "Built $(CART_IMG)"
+	@echo "  FLASHCFG  @ $(FLASHCFG_OFFSET) size $(FLASHCFG_SIZE)"
+	@echo "  FLASHCART @ $(FLASHCART_OFFSET) size $(FLASHCART_SIZE)"
+
+# High-level aliases
+assets: $(CART_IMG)
+
+# Create a full flash image combining firmware, flashcfg and flashcart at correct offsets
+# The image layout follows firmware Link.ld:
+#  - firmware BIN @ 0x00000000 (must fit before FLASHCFG_OFFSET)
+#  - FLASHCFG @ $(FLASHCFG_OFFSET) (size $(FLASHCFG_SIZE))
+#  - FLASHCART @ $(FLASHCART_OFFSET) (size $(FLASHCART_SIZE))
+DD_OUT ?= $(OUT_DIR)/full_flash_image.bin
+dd: $(BIN) $(FLASHCFG_PAD) $(FLASHCART_PAD) | $(OUT_DIR)
+	@echo "Building full flash image -> $(DD_OUT)"
+	@# create base image filled with 0xFF
+	@dd if=/dev/zero bs=1 count=$$(( $(FLASHCART_OFFSET) + $(FLASHCART_SIZE) )) 2>/dev/null | tr '\000' '\377' > "$(DD_OUT)"
+	@# ensure firmware fits into the reserved FLASH region
+	@bsz=$$(stat -c%s "$(BIN)"); maxsz=$$(( $(FLASHCFG_OFFSET) )); \
+	if [ $$bsz -gt $$maxsz ]; then \
+		echo "ERROR: firmware $(BIN) size ($$bsz) exceeds reserved FLASH before FLASHCFG ($(FLASHCFG_OFFSET))."; \
+		exit 1; \
 	fi
-	$(MAKE) -C "$(SUB_BUILD_DIR)" all
+	@dd if="$(BIN)" of="$(DD_OUT)" conv=notrunc bs=1 2>/dev/null
+	@dd if="$(FLASHCFG_PAD)" of="$(DD_OUT)" bs=1 seek=$$(( $(FLASHCFG_OFFSET) )) conv=notrunc 2>/dev/null
+	@dd if="$(FLASHCART_PAD)" of="$(DD_OUT)" bs=1 seek=$$(( $(FLASHCART_OFFSET) )) conv=notrunc 2>/dev/null
+	@echo "Full flash image written to $(DD_OUT)"
 
-bin: $(BIN)
+# Flash the full combined image created by `make dd` to the device at 0x00000000
+# Usage: make flash-image   # will flash $(DD_OUT)
+#        make flash-image DD_OUT=/tmp/myimage.bin
+flash-image: $(DD_OUT)
+	@echo "Flashing $(DD_OUT) to device using $(OPENOCD) and config $(OPENOCD_TOOLCHAIN_BIN)/wch-riscv.cfg"
+	"$(OPENOCD)" -f "$(OPENOCD_TOOLCHAIN_BIN)/wch-riscv.cfg" -c "init" -c "reset halt" -c "flash write_image erase $(DD_OUT) 0x00000000" -c "verify_image $(DD_OUT) 0x00000000" -c "reset run" -c "exit"
+	@echo "Flashed $(DD_OUT)"
+
+.PHONY: all clean size copy-bin help print-config assets flash erase dump dd flash-image
+
+all: $(ELF) $(BIN) $(HEX) copy-bin
+
+# Compile rules
+$(BUILD)/obj/%.o: %.c | $(DIRS)
+	$(CC) $(CFLAGS) -c "$<" -o "$@"
+
+$(BUILD)/obj/%.o: %.S | $(DIRS)
+	$(AS) $(ASFLAGS) -c "$<" -o "$@"
+
+$(BUILD)/obj/%.o: %.s | $(DIRS)
+	$(AS) $(ASFLAGS) -c "$<" -o "$@"
+
+# Link
+$(ELF): $(OBJS)
+	$(LD) $(LDFLAGS) -o "$@" $(OBJS)
+	$(SIZE) --format=berkeley "$@"
+	$(OBJDUMP) --all-headers --demangle --disassemble -M xw "$@" > "$(LST)"
+
+# Convert
 $(BIN): $(ELF)
-	@:
+	$(OBJCOPY) -O binary "$<" "$@"
 
-hex: $(HEX)
 $(HEX): $(ELF)
-	@:
-
-lst: $(LST)
-$(LST): $(ELF)
-	@:
+	$(OBJCOPY) -O ihex "$<" "$@"
 
 size: $(ELF)
-	@if [ -d "$(SUB_BUILD_DIR)" ]; then $(MAKE) -C "$(SUB_BUILD_DIR)" RISKYMSXCART.siz; else echo "Sub-build dir '$(SUB_BUILD_DIR)' not found"; fi
-
+	$(SIZE) --format=berkeley "$(ELF)"
 
 clean:
-	@if [ -d "$(SUB_BUILD_DIR)" ]; then $(MAKE) -C "$(SUB_BUILD_DIR)" clean; fi
-	@rm -f "$(ELF)" "$(BIN)" "$(HEX)" "$(LST)"
+	rm -rf "$(BUILD)"
 
-# Copy the generated BIN (from $(OUT_DIR)) to the repo root for convenience
+# Copy the generated BIN to repo root and out directory for convenience
 copy-bin: $(BIN)
-	cp -f "$(BIN)" "$(ROOT)/RISKYMSXCART.bin"
+	cp -f "$(BIN)" "$(ROOT)/$(PROJECT).bin"
+	cp -f "$(ELF)" "$(OUT_DIR)/$(PROJECT).elf"
+	cp -f "$(BIN)" "$(OUT_DIR)/$(PROJECT).bin"
+	cp -f "$(HEX)" "$(OUT_DIR)/$(PROJECT).hex"
+	cp -f "$(LST)" "$(OUT_DIR)/$(PROJECT).lst"
 
-# Flash using minichlink (simple, reliable tool from ch32fun project)
-flash: $(ELF)
-	@echo "Flashing $(ELF) via WCH-Link using minichlink..."
-	@bash "$(ROOT)/flash.sh" "$(ELF)"
+# Flash and erase using OpenOCD (WCH RISC-V)
+# You can override OPENOCD or OPENOCD_CFG on the command line if needed
+# Prefer the packaged OpenOCD in the repo if present
+OPENOCD_TOOLCHAIN_BIN := $(ROOT)/MRS_Toolchain_Linux_x64_V210/OpenOCD/OpenOCD/bin
+OPENOCD    ?= openocd
+ifneq (,$(wildcard $(OPENOCD_TOOLCHAIN_BIN)/openocd))
+OPENOCD     := $(OPENOCD_TOOLCHAIN_BIN)/openocd
+endif
+OPENOCD_CFG ?= $(ROOT)/wch-riscv.cfg
 
-# Erase entire chip using minichlink
+# Erase entire flash (bank 0)
 erase:
-	@echo "Erasing CH32V30x chip via WCH-Link using minichlink..."
-	@echo "Note: Fault messages may appear but erase usually succeeds"
-	@minichlink -E
+	"$(OPENOCD)" -f "$(OPENOCD_TOOLCHAIN_BIN)/wch-riscv.cfg" -c "init" -c "reset halt" -c "flash erase_sector 0 0 last" -c "exit"
 
-# Start OpenOCD server (for GDB). Uses default config; override OPENOCD_CFG if needed.
-openocd-server:
-	"$(OPENOCD)" -s "$(OPENOCD_SCRIPTS)" $(OPENOCD_CFG)
+# Program firmware binary at 0x00000000 and verify
+flash: $(BIN)
+	"$(OPENOCD)" -f "$(OPENOCD_TOOLCHAIN_BIN)/wch-riscv.cfg" -c "init" -c "reset halt" -c "flash write_image erase $(BIN) 0x00000000" -c "verify_image $(BIN) 0x00000000" -c "reset run" -c "exit"
 
-# Quick GDB connect (expects OpenOCD already running on :3333)
-gdb: $(ELF)
-	riscv-wch-elf-gdb -q $(ELF) -ex "target extended-remote :3333"
+# Dump entire flash (bank 0) to a file in $(OUT_DIR)
+# Usage: make dump            # writes to default DUMP_FILE
+#        make dump DUMP_FILE=out/mydump.bin
+DUMP_FILE ?= $(OUT_DIR)/chip_dump-$(shell date +%Y%m%d-%H%M%S).bin
+dump:
+	@mkdir -p "$(OUT_DIR)"
+	@echo "Reading flash bank 0 to $(DUMP_FILE) using $(OPENOCD) and config $(OPENOCD_TOOLCHAIN_BIN)/wch-riscv.cfg"
+	"$(OPENOCD)" -f "$(OPENOCD_TOOLCHAIN_BIN)/wch-riscv.cfg" -c "init" -c "reset halt" -c "flash read_bank 0 $(DUMP_FILE)" -c "exit"
+	@echo "Dump saved to $(DUMP_FILE)"
 
-# List USB devices to help identify programmer
-list-usb:
-	@echo "Connected USB devices:"
-	@lsusb 2>/dev/null || echo "lsusb not available"
-	@echo
-	@echo "Looking for WCH devices (vendor ID 1a86):"
-	@lsusb -d 1a86: 2>/dev/null || echo "No WCH devices found"
+print-config:
+	@echo "CROSS=$(CROSS)"
+	@echo "TOOLCHAIN_DIR=$(TOOLCHAIN_DIR)"
+	@echo "BUILD=$(BUILD)"
+	@echo "Sources: C=$(words $(SRCS_C)) S=$(words $(SRCS_S))"
 
 help:
-	@echo "RISKYMSX firmware top-level Makefile"
-	@echo
-	@echo "Toolchain:"
-	@echo "  TOOLCHAIN_DIR   = $(TOOLCHAIN_DIR)"
-	@echo "  (PATH augmented with $$TOOLCHAIN_DIR/bin)"
-	@echo
-	@echo "OpenOCD:"
-	@echo "  OPENOCD_ROOT    = $(OPENOCD_ROOT)"
-	@echo "  OPENOCD         = $(OPENOCD)"
-	@echo "  OPENOCD_SCRIPTS = $(OPENOCD_SCRIPTS)"
-	@echo "  OPENOCD_CFG     = $(OPENOCD_CFG)"
-	@echo
-	@echo "Build directories:"
-	@echo "  SUB_BUILD_DIR   = $(SUB_BUILD_DIR) (auto-detected; override if needed)"
-	@echo "  OUT_DIR         = $(OUT_DIR) (artifacts copied here)"
+	@echo "RISKYMSX universal Makefile"
+	@echo "  Build outputs in $(BUILD) and copied to $(OUT_DIR)"
+	@echo "  Toolchain prefix: $(CROSS) (override with CROSS=...)"
 	@echo
 	@echo "Common targets:"
-	@echo "  all (default)  - build firmware via sub-make (creates ELF, BIN, HEX, LST)"
-	@echo "                   copies artifacts into $(OUT_DIR) and BIN to repo root"
-	@echo "  clean          - clean firmware build"
-	@echo "  size           - print section sizes"
-	@echo "  flash          - program via minichlink (reliable WCH-Link tool)"
-	@echo "  erase          - erase entire chip via minichlink"
-	@echo "  openocd-server - start OpenOCD server (for GDB)"
-	@echo "  gdb            - start GDB and connect to :3333"
-	@echo "  list-usb       - show connected USB devices (helps identify programmer)"
-	@echo
-	@echo "Flash configuration:"
-	@echo "  Uses minichlink from ch32fun project - simple and reliable for WCH-Link"
-	@echo "  No configuration needed, works out-of-the-box with WCH-Link"
-	@echo "  Use 'make erase' to clear entire chip before flashing if needed"
-	@echo
-	@echo "Note: CH32V30x is a RISC-V chip. Uses minichlink for reliable flashing."
-	@echo
-	@echo "Troubleshooting flash errors:"
-	@echo "  'WCH-Link not found' - Ensure WCH-Link is connected and powered"
-	@echo "  'Permission denied' - May need udev rules for USB access"
-	@echo "  'Chip not detected' - Try power-cycling the target board"
-	@echo "  'Fault on op' during erase - Normal, erase usually succeeds anyway"
-	@echo "  Alternative: Use WCH-LinkUtility GUI tool for flashing"
-	@echo
-	@echo "Examples:"
-	@echo "  make                    # build firmware"
-	@echo "  make erase              # erase entire chip"
-	@echo "  make flash              # program with default WCH-Link config"
-	@echo "  make openocd-server     # start debug server"
+	@echo "  make            - build ELF/BIN/HEX and copy artifacts"
+	@echo "  make size       - print section sizes"
+	@echo "  make clean      - remove build directory"
+	@echo "  make list-usb   - list USB devices (helps identify programmer)"
+	@echo "  make print-config - show configuration"
+
+# Dependency includes
+-include $(DEPS)
