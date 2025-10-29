@@ -47,3 +47,8 @@ flash.sh
 wch-riscv.cfg
 
 build-standalone/
+build-bootloader/
+Bootloader.bin
+assets/flashcart2.bin
+bootloader/.mrs/
+bootloader/obj/

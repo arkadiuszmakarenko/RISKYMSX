@@ -7,11 +7,26 @@ PROVIDE( _stack_size = __stack_size );
 
 MEMORY
 {
-	FLASH (rx) 	: 	ORIGIN = 0x00000C00, LENGTH = 0x7300
-    FLASHCFG (rx) : ORIGIN = 0x00007F00, LENGTH = 0x0100
-	FLASHCART (rx) :ORIGIN = 0x00008000, LENGTH = 256K
-	RAM (xrw) : 	ORIGIN = 0x20000000, LENGTH = 31K
-	RAMCART (xrw) : ORIGIN = 0x20007C00, LENGTH = 1K
+/* CH32V30x_D8C - CH32V305RB-CH32V305FB
+   CH32V30x_D8 - CH32V303CB-CH32V303RB
+*/
+/*
+	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 128K
+	RAM (xrw) : ORIGIN = 0x20000000, LENGTH = 32K
+*/
+    
+/* CH32V30x_D8C - CH32V307VC-CH32V307WC-CH32V307RC-CH32V305CC
+   CH32V30x_D8 - CH32V303VC-CH32V303RC
+   FLASH + RAM supports the following configuration
+   For specific choices, please refer :CH32FV2x_V3xRM.PDF\Table 32-3
+   FLASH-192K + RAM-128K
+   FLASH-224K + RAM-96K
+   FLASH-256K + RAM-64K  
+   FLASH-288K + RAM-32K  
+   FLASH-128K + RAM-192K  
+*/
+	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 3K
+	RAM (xrw) : ORIGIN = 0x20000000, LENGTH = 32K
 }
 
 
@@ -163,20 +178,7 @@ SECTIONS
         . = . + __stack_size;
         PROVIDE( _eusrstack = .);
     } >RAM 
-    
-    .cart_section : 
-    { 
-    	__cart_section_start = ORIGIN(FLASHCART);
-    	*(.cart_section_section)
-    	__cart_section_end = ORIGIN(FLASHCART) + LENGTH(FLASHCART);
-    } > FLASHCART
-	
-	.cfg_section : 
-    { 
-    	__cfg_section_start = ORIGIN(FLASHCFG);
-    	*(.cfg_section_section)
-    	__cfg_section_end = ORIGIN(FLASHCFG) + LENGTH(FLASHCFG);
-    } > FLASHCFG
+
 }
 
 
