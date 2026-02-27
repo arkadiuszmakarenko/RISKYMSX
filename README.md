@@ -55,7 +55,7 @@ This version introduces the following changes:
 * unnecessary leds are removed, leaving just the Flash and Power leds
 * the audio amplifier circuit is enhanced with a low pass filter 
 
-See the [Bill Of Materials (BoM)](https://html-preview.github.io/?url=https://raw.githubusercontent.com/arkadiuszmakarenko/RISKYMSX/main/board/bom/ibom.html) generated from the KiCad files for information about the specific components used.
+See the [Bill Of Materials (BoM)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/arkadiuszmakarenko/RISKYMSX/main/board/bom/ibom.html) generated from the KiCad files for information about the specific components used.
 
 Have a look at the [schematic and PCB](https://kicanvas.org/?github=https%3A%2F%2Fgithub.com%2Farkadiuszmakarenko%2FRISKYMSX%2Ftree%2Fmain%2Fboard) using [KiCanvas](https://kicanvas.org).
 
