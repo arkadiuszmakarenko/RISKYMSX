@@ -1,2 +1,10 @@
+# MounRiver Studio build output
 /obj/
+
+# Command-line make build output
 /build/
+
+# VS Code / MounRiver workspace state (transient, regenerable).
+# launch.json is kept tracked.
+.mrs/*.snapshot
+.mrs/*.mrs-workspace

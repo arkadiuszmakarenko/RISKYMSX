@@ -28,3 +28,27 @@ gerbers/
 cad/
 \#*.dxf
 *.lck
+
+# KiCad local history snapshots (auto-generated local backups)
+board/.history/
+
+# ---- Build outputs and intermediate artifacts ------------------------------
+# Local firmware builds (root and per-target)
+out/
+build-bootloader/
+build-standalone/
+
+# Bootloader source tree auto-generated objects
+bootloader/obj/
+bootloader/.mrs/
+
+# ---- Prebuilt firmware images at repo root (not tracked) -------------------
+# Tracked release artifacts in repo root:
+#   RISKYMSXCART_v3.3.0.bin    (kept, versioned release)
+# Untracked local builds:
+Bootloader.bin
+RISKYMSXCART.bin
+
+# ---- Toolchains ------------------------------------------------------------
+# Bundled WCH MounRiver toolchain (~2.8 GB); auto-detected by firmware/Makefile
+MRS_Toolchain_Linux_x64_V210/
