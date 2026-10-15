@@ -22,7 +22,7 @@ int PointerX = 1;
 int PointerY = 1;
 
 // Shared mapper names for both the type display and the selection list
-static const char *const kMapperNames[10] = {
+static const char *const kMapperNames[11] = {
     "Standard 16KB ROM",
     "Standard 32KB ROM",
     "Standard 48KB or 64KB ROM",
@@ -32,7 +32,8 @@ static const char *const kMapperNames[10] = {
     "ASCII 8KB",
     "ASCII 16KB",
     "NEO 8KB",
-    "NEO 16KB"};
+    "NEO 16KB",
+    "SCC only (no ROM)"};
 
 FATFS fs;
 
@@ -243,7 +244,7 @@ void PrintMapperMenu() {
     appendString (&scb, FileNameSize);
 
     NewLine();
-    PrintMapperList();
+    PrintMapperList (10);
 
     MoveCursor (21, 0);
 
@@ -295,7 +296,7 @@ void ChangeMapperMenu() {
     MoveCursor (2, 0);
     PrintMapperType (type);
     MoveCursor (4, 0);
-    PrintMapperList();
+    PrintMapperList (11);
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
     MoveCursor (4, 1);
@@ -480,7 +481,7 @@ void ProcessMSXTerminal (void) {
             }
             // cursor down
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 9) {
+                if (menu.CartTypeIndex != 10) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
@@ -553,8 +554,8 @@ void PrintMapperType (CartType type) {
     }
 }
 
-void PrintMapperList() {
-    for (int i = 0; i < 10; ++i) {
+void PrintMapperList (int count) {
+    for (int i = 0; i < count; ++i) {
         MoveCursor (4 + i, 2);
         appendString (&scb, kMapperNames[i]);
     }
