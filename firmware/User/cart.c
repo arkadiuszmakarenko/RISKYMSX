@@ -1,4 +1,5 @@
 #include "cart.h"
+#include "emu2212.h"
 
 
 // GPIOE Pins    0 - 16      Address
@@ -391,6 +392,16 @@ void Init_Cart() {
         SetVTFIRQ ((u32)RunNEO16, EXTI3_IRQn, 0, ENABLE);
         break;
 
+    case SCCONLY:
+        // 10 - 1010. Temporarily triggered by SLTSL (EXTI3); CS2 (EXTI6) did not capture SCC accesses.
+        SCC_Init();
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        NVIC_SetPriority (EXTI3_IRQn, 0);
+        SetVTFIRQ ((u32)RunSCCOnly, EXTI3_IRQn, 0, ENABLE);
+        break;
+
     case MSXTERMINAL:
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
@@ -712,6 +723,38 @@ void RunNEO8 (void) {
         }
     }
     return;
+}
+
+extern SCC *scc;
+
+// SCC only: SLTSL falling edge. Handles the SCC area 0x9000-0x98FF.
+void RunSCCOnly (void) {
+    uint16_t address = (uint16_t)GPIOE->INDR;
+    EXTI->INTFR = EXTI_Line3;
+
+    if (address < 0x9000 || address > 0x98FF)
+        return;
+
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
+            if (address >= 0x9800 && scc->active) {
+                GPIOD->CFGLR = state_pointer->BusOn;
+                GPIOD->OUTDR = (uint8_t)SCC_read (scc, address);
+                while ((GPIOB->INDR & 0x0008) == 0) { };
+                GPIOD->CFGLR = state_pointer->BusOff;
+            }
+            return;
+        }
+        if (((uint16_t)GPIOB->INDR & 0x0010) == 0) {
+            uint32_t AddressData = ((uint32_t)address << 16) | (uint8_t)GPIOD->INDR;
+            uint8_t next = (buf->head + 1 >= BUFFER_SIZE) ? 0 : buf->head + 1;
+            if (next != buf->tail) {
+                buf->buffer[buf->head] = AddressData;
+                buf->head = next;
+            }
+            return;
+        }
+    }
 }
 
 void RunMSXTerminal (void) {

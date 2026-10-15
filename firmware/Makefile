@@ -4,6 +4,7 @@
 # Targets:
 #   make            - build ELF/HEX/BIN
 #   make flash      - build and program the chip via minichlink (WCH-Link)
+#   make publish       - clean release build -> ../RISKYMSXCART_<version>.bin
 #   make flash-openocd - build and program via OpenOCD using wch-riscv.cfg
 #   make size       - show program/data size
 #   make clean      - remove build artifacts
@@ -105,7 +106,7 @@ LDFLAGS  := $(ARCH_FLAGS) -T "$(LINKER)" -nostartfiles \
             --specs=nano.specs --specs=nosys.specs
 
 # ---- Build rules -------------------------------------------------------------
-.PHONY: all flash flash-openocd size clean
+.PHONY: all flash flash-openocd publish size clean
 
 all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin
 
@@ -142,19 +143,35 @@ $(OBJ_DIRS):
 
 # ---- Flash targets -----------------------------------------------------------
 MINICHLINK ?= minichlink
-OPENOCD   ?= openocd
-OPENOCD_IFACE := wlink
-OPENOCD_CFG  := $(abspath $(CURDIR)/../wch-riscv.cfg)
+# The stock OpenOCD has no WCH-Link driver; use the WCH fork bundled with MounRiver.
+MRS_OCD_DIR := $(abspath $(CURDIR)/../MRS_Toolchain_Linux_x64_V210/OpenOCD/OpenOCD/bin)
+ifneq ($(wildcard $(MRS_OCD_DIR)/openocd),)
+    OPENOCD     ?= $(MRS_OCD_DIR)/openocd
+    OPENOCD_CFG ?= $(MRS_OCD_DIR)/wch-riscv.cfg
+else
+    OPENOCD     ?= openocd
+    OPENOCD_CFG ?= $(abspath $(CURDIR)/../wch-riscv.cfg)
+endif
 
 flash: $(BUILD)/$(TARGET).bin
 	@echo ">>> Flashing $(BUILD)/$(TARGET).bin to $(FLASH_ADDR) via minichlink"
 	@$(MINICHLINK) -w $< $(FLASH_ADDR)
 
-flash-openocd: $(BUILD)/$(TARGET).elf
-	@echo ">>> Flashing $(BUILD)/$(TARGET).elf via OpenOCD (WCH-Link)"
-	@cd $(abspath $(CURDIR)/..) && \
-	    $(OPENOCD) -f $(OPENOCD_CFG) \
-	               -c "program $(abspath $<) $(FLASH_ADDR) verify reset exit"
+flash-openocd: $(BUILD)/$(TARGET).bin
+	@echo ">>> Flashing $(BUILD)/$(TARGET).bin via OpenOCD (WCH-Link)"
+	@$(OPENOCD) -f $(OPENOCD_CFG) \
+	    -c "program $(abspath $<) $(FLASH_ADDR) verify reset exit"
+
+# Clean release build; copies the .bin to the repo root as RISKYMSXCART_v<version>.bin
+VERSION := $(shell sed -n 's/.*FIRMWARE_VERSION_STRING "\(.*\)".*/\1/p' User/version.h)
+RELEASE_BIN := $(abspath $(CURDIR)/..)/$(TARGET)_$(VERSION).bin
+
+publish:
+	@test -n "$(VERSION)" || { echo "Cannot read version from User/version.h"; exit 1; }
+	@$(MAKE) --no-print-directory clean
+	@$(MAKE) --no-print-directory $(BUILD)/$(TARGET).bin
+	@cp $(BUILD)/$(TARGET).bin $(RELEASE_BIN)
+	@echo ">>> Published $(RELEASE_BIN)"
 
 # ---- Utilities ---------------------------------------------------------------
 size: $(BUILD)/$(TARGET).elf
