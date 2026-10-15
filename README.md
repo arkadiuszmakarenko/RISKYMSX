@@ -293,6 +293,48 @@ The project file is under the `firmware` directory on the cloned github reposito
 [<img src="images/mounriverstudio-ide-build-project.png" width="768"/>](images/mounriverstudio-ide-build-project.png)
 
 
+#### Generating the firmware file from the command line
+
+As an alternative to the MounRiverStudio IDE, the firmware can be built and flashed directly from the command line using GNU `make`. The build flags are taken straight from the MounRiver-generated `obj/makefile`, so the resulting binary is identical.
+
+Requirements:
+
+* GNU `make`
+* A RISC-V toolchain. The Makefile auto-detects, in order:
+  1. The bundled `MRS_Toolchain_Linux_x64_V210/RISC-V Embedded GCC12` (shipped in the repo)
+  2. `riscv-wch-elf-gcc` on `PATH` (the same compiler MounRiver uses)
+  3. `riscv-none-embed-gcc` on `PATH` (xPack)
+  4. `riscv64-unknown-elf-gcc` on `PATH` (system package)
+* For flashing: [`minichlink`](https://github.com/cnlohr/ch32fun) (used by the `flash` target) and/or `openocd` with WCH-Link support (used by the `flash-openocd` target)
+
+Build the firmware:
+
+```bash
+cd firmware
+make            # produces build/RISKYMSXCART.{elf,bin,hex,map}
+make size       # show program/data sizes
+make clean      # remove build artifacts
+```
+
+Build and program the chip in a single step using `minichlink` and a WCH-LinkE:
+
+```bash
+make flash
+```
+
+Build and program the chip using `openocd` and `wch-riscv.cfg` at the repo root:
+
+```bash
+make flash-openocd
+```
+
+You can override the toolchain explicitly, for example to force a clean build with the xPack toolchain:
+
+```bash
+make TOOLCHAIN_DIR=/opt/xpack PREFIX=riscv-none-embed- clean all
+```
+
+
 #### Programming the firmware
 
 The firmware can be programmed into the RISKYMSX cartridge using the MounRiverStudio IDE and a WCH-LinkE programmer, or using the WCHISPTool_CMD and a USB Type A to Type A cable.
