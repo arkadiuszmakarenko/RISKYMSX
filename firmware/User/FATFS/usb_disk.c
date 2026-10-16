@@ -148,7 +148,6 @@ uint8_t USBH_EnumRootDevice (uint8_t usb_port) {
     uint8_t msc_interface_found = 0;
     uint8_t msc_in_ep_found = 0, msc_out_ep_found = 0;
 
-    // printf ("[MSC] Enum Start\r\n");
 
     enum_cnt = 0;
 ENUM_START:
@@ -171,7 +170,6 @@ ENUM_START:
     }
     if (i) {
         if (enum_cnt <= 5) {
-            // printf ("[MSC] Device not attached, retrying...\r\n");
             goto ENUM_START;
         }
         // printf ("[MSC] Device not attached after retries.\r\n");
@@ -193,7 +191,6 @@ ENUM_START:
         // printf ("\n");
 #endif
     } else {
-        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -207,7 +204,6 @@ ENUM_START:
     if (s == ERR_SUCCESS) {
         // printf ("OK\n");
     } else {
-        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -228,7 +224,6 @@ ENUM_START:
         // printf ("\n");
 #endif
     } else {
-        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -297,7 +292,6 @@ ENUM_START:
             //  printf ("[MSC] USB MSC device enumeration complete and endpoints assigned.\r\n");
         }
     } else {
-        // printf ("Err(%02x)\n", s);
         if (enum_cnt <= 5) {
             goto ENUM_START;
         }
@@ -582,3 +576,194 @@ uint8_t usb_scsi_request_sense (uint8_t *buf, uint16_t len) {
 // (Removed test helper: START/STOP UNIT)
 
 // (Removed test helper: PREVENT/ALLOW MEDIUM REMOVAL)
+/* ---------------------------------------------------------------------- */
+/* Raw-disk (Nextor) additions: WRITE(10), multi-block transfers, INQUIRY, */
+/* TEST UNIT READY and a lazy enumeration helper.                          */
+/* ---------------------------------------------------------------------- */
+
+#include "nextor.h"
+
+#define MSC_ERR_STALL     ((uint8_t)(ERR_USB_TRANSFER | USB_PID_STALL))
+#define MSC_BULK_PACKET   64U
+/* Budget for a flash stick to commit a WRITE(10) (~1 ms per poll). It stays
+ * below the Z80 driver's mailbox poll window. */
+#define WR10_CSW_MAX_TRIES 1800U
+
+static void cbw_rw10 (CBW_t *cbw, uint32_t tag, uint8_t opcode, uint8_t dir_in,
+                      uint32_t lba, uint16_t count, uint32_t block_size) {
+    memset (cbw, 0, sizeof (*cbw));
+    cbw->dCBWSignature = 0x43425355;
+    cbw->dCBWTag = tag;
+    cbw->dCBWDataTransferLength = (uint32_t)count * block_size;
+    cbw->bmCBWFlags = dir_in ? 0x80 : 0x00;
+    cbw->bCBWCBLength = 10;
+    cbw->CBWCB[0] = opcode;
+    cbw->CBWCB[2] = (lba >> 24) & 0xFF;
+    cbw->CBWCB[3] = (lba >> 16) & 0xFF;
+    cbw->CBWCB[4] = (lba >> 8) & 0xFF;
+    cbw->CBWCB[5] = lba & 0xFF;
+    cbw->CBWCB[7] = (count >> 8) & 0xFF;
+    cbw->CBWCB[8] = count & 0xFF;
+}
+
+// Wait for a CSW, tolerating long NAK periods while the stick commits a write.
+static uint8_t csw_wait (CSW_t *csw, uint16_t max_tries, uint16_t *tries_out) {
+    uint8_t res = ERR_USB_TRANSFER;
+    uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+    for (uint16_t t = 0; t < max_tries; t++) {
+        uint16_t plen = sizeof (CSW_t);
+        res = USBFSH_GetEndpData (usb_in_ep, &in_tog, (uint8_t *)csw, &plen);
+        if (res == ERR_SUCCESS && plen >= sizeof (CSW_t)) {
+            if (csw->dCSWSignature != 0x53425355U) return ERR_USB_TRANSFER;
+            if (tries_out) *tries_out = t;
+            return ERR_SUCCESS;
+        }
+        if (res == ERR_USB_DISCON) break;
+        if (res == MSC_ERR_STALL) {
+            (void)USBFSH_ClearEndpStall (ep0, (uint8_t)(0x80 | usb_in_ep));
+            in_tog = 0;
+            Delay_Ms (2);
+            continue;
+        }
+        Delay_Ms (1);
+    }
+    if (tries_out) *tries_out = max_tries;
+    return res == ERR_SUCCESS ? ERR_USB_TRANSFER : res;
+}
+
+static uint8_t bulk_out_stream (const uint8_t *buf, uint32_t total) {
+    uint8_t ep0 = RootHubDev[DEF_USB_PORT_FS].bEp0MaxPks;
+    uint32_t sent = 0;
+    while (sent < total) {
+        uint16_t chunk = (total - sent) > MSC_BULK_PACKET ? MSC_BULK_PACKET : (uint16_t)(total - sent);
+        int retries = 0;
+        uint8_t res;
+        do {
+            res = USBFSH_SendEndpData (usb_out_ep, &out_tog, (uint8_t *)(buf + sent), chunk);
+            if (res == ERR_SUCCESS) break;
+            if (res == ERR_USB_DISCON) return res;
+            if (res == MSC_ERR_STALL) {
+                (void)USBFSH_ClearEndpStall (ep0, usb_out_ep);
+                out_tog = 0;
+                Delay_Ms (2);
+            } else {
+                Delay_Ms (1);
+            }
+        } while (++retries < 20);
+        if (res != ERR_SUCCESS) return res;
+        sent += chunk;
+    }
+    return ERR_SUCCESS;
+}
+
+static uint8_t bulk_in_stream (uint8_t *buf, uint32_t total) {
+    uint32_t got = 0;
+    while (got < total) {
+        uint16_t plen = (total - got) > MSC_BULK_PACKET ? MSC_BULK_PACKET : (uint16_t)(total - got);
+        int retries = 0;
+        uint8_t res;
+        do {
+            res = USBFSH_GetEndpData (usb_in_ep, &in_tog, buf + got, &plen);
+            if (res == ERR_SUCCESS) break;
+            if (res == ERR_USB_DISCON) return res;
+            Delay_Ms (1);
+        } while (++retries < 40);
+        if (res != ERR_SUCCESS || plen == 0) return ERR_USB_TRANSFER;
+        got += plen;
+    }
+    return ERR_SUCCESS;
+}
+
+/* Returns 0 ok, 1 CBW failed, 2 data stage failed, 3 no CSW, 4 CHECK CONDITION. */
+static uint8_t scsi_write_once (uint32_t lba, const uint8_t *buf, uint32_t block_size,
+                                uint16_t count, uint16_t *csw_tries) {
+    CBW_t cbw;
+    CSW_t csw;
+    cbw_rw10 (&cbw, 0xCAFEBA5E, 0x2A, 0, lba, count, block_size);
+    if (usb_send_cbw (&cbw) != ERR_SUCCESS) return 1;
+    if (bulk_out_stream (buf, (uint32_t)count * block_size) != ERR_SUCCESS) return 2;
+    if (csw_wait (&csw, WR10_CSW_MAX_TRIES, csw_tries) != ERR_SUCCESS) return 3;
+    return csw.bCSWStatus != 0 ? 4 : 0;
+}
+
+// One attempt; the caller falls back to per-sector commands on failure.
+uint8_t usb_scsi_write_blocks (uint32_t lba, const uint8_t *buf, uint32_t block_size, uint16_t count) {
+    uint16_t tries = 0;
+    uint8_t r = scsi_write_once (lba, buf, block_size, count, &tries);
+    if (r == 0) return 0;
+    if (r == 4) {
+        uint8_t sense[18] = {0};
+        (void)usb_scsi_request_sense (sense, sizeof (sense));
+    } else {
+        (void)msc_mass_storage_reset();
+    }
+    return r;
+}
+
+uint8_t usb_scsi_read_blocks (uint32_t lba, uint8_t *buf, uint32_t block_size, uint16_t count) {
+    CBW_t cbw;
+    CSW_t csw;
+    uint8_t res = ERR_USB_TRANSFER;
+    cbw_rw10 (&cbw, 0xCAFEBABE, 0x28, 1, lba, count, block_size);
+    for (int i = 0; i < 20; i++) {
+        res = usb_send_cbw (&cbw);
+        if (res == ERR_SUCCESS) break;
+        Delay_Ms (1);
+    }
+    if (res != ERR_SUCCESS) return 1;
+    if (bulk_in_stream (buf, (uint32_t)count * block_size) != ERR_SUCCESS) {
+        (void)msc_mass_storage_reset();
+        return 2;
+    }
+    if (csw_wait (&csw, 2000, (uint16_t *)0) != ERR_SUCCESS || csw.bCSWStatus != 0) {
+        (void)msc_mass_storage_reset();
+        return 3;
+    }
+    return 0;
+}
+
+uint8_t usb_scsi_inquiry (uint8_t *buf, uint16_t len) {
+    CBW_t cbw; CSW_t csw; uint16_t plen = len;
+    memset (&cbw, 0, sizeof (cbw));
+    cbw.dCBWSignature = 0x43425355;
+    cbw.dCBWTag = 0xCAFEBAB0;
+    cbw.dCBWDataTransferLength = len;
+    cbw.bmCBWFlags = 0x80;
+    cbw.bCBWCBLength = 6;
+    cbw.CBWCB[0] = 0x12;
+    cbw.CBWCB[4] = (uint8_t)len;
+    if (usb_send_cbw (&cbw) != ERR_SUCCESS) return 1;
+    Delay_Ms (1);
+    if (bulk_in_read_retry (buf, &plen, 40) != ERR_SUCCESS) return 2;
+    Delay_Ms (1);
+    if (usb_recv_csw (&csw) != ERR_SUCCESS || csw.bCSWStatus != 0) return 3;
+    return 0;
+}
+
+/* Poll the root hub and enumerate if needed. Returns DEF_SUCCESS when a
+ * device is enumerated; yields at once if the Z80 has a mailbox request. */
+uint8_t USB_TryEnsureEnumerated (void) {
+    uint8_t r = DEF_ERR_ENUM;
+    for (int tries = 0; tries < 5; tries++) {
+        if (Nextor_RequestPending() != 0U) return DEF_ERR_ENUM;
+        r = USBH_PreDeal();
+        if (r == DEF_ERR_DETECT) {
+            Nextor_CacheInvalidate();
+            return DEF_ERR_DETECT;
+        }
+        if (r == DEF_SUCCESS) break;
+        // PreDeal only reports a port change once; an already-enumerated stick returns DEF_DEFAULT.
+        if (RootHubDev[DEF_USB_PORT_FS].bStatus == ROOT_DEV_SUCCESS) {
+            r = DEF_SUCCESS;
+            break;
+        }
+        if (USBH_EnumRootDevice (DEF_USB_PORT_FS) == ERR_SUCCESS) {
+            RootHubDev[DEF_USB_PORT_FS].bStatus = ROOT_DEV_SUCCESS;
+            r = DEF_SUCCESS;
+            break;
+        }
+        r = DEF_ERR_ENUM;
+        Delay_Ms (100);
+    }
+    return r == DEF_SUCCESS ? DEF_SUCCESS : DEF_ERR_ENUM;
+}

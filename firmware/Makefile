@@ -95,20 +95,32 @@ DEFINES :=
 # ---- Compiler / linker flags -------------------------------------------------
 COMMON_FLAGS := $(ARCH_FLAGS) -Os -fmessage-length=0 -fsigned-char \
                 -ffunction-sections -fdata-sections -fno-common \
-                -fmax-errors=20 -MMD -MP
+                -fmax-errors=20 -MMD -MP -flto
 
 CFLAGS   := $(COMMON_FLAGS) $(INCLUDES) $(DEFINES) -std=gnu99
 ASFLAGS  := $(COMMON_FLAGS) $(INCLUDES) -x assembler-with-cpp
 
-LDFLAGS  := $(ARCH_FLAGS) -T "$(LINKER)" -nostartfiles \
+LDFLAGS  := $(ARCH_FLAGS) -Os -flto -T "$(LINKER)" -nostartfiles \
             -Xlinker --gc-sections -Xlinker --print-memory-usage \
             -Wl,-Map,"$(BUILD)/$(TARGET).map" \
             --specs=nano.specs --specs=nosys.specs
 
 # ---- Build rules -------------------------------------------------------------
-.PHONY: all flash flash-openocd publish size clean
+.PHONY: all flash flash-openocd publish size clean nextor
 
-all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin
+# Nextor ROM (driver + kernel) built from ../msx2/NextorDriver and copied to
+# build/CART.NXT. Copy it to the USB stick; the terminal programs it as the
+# NEXTOR mapper. Needs N80 (dotnet); skipped with a warning if the build fails.
+NEXTOR_DIR := $(abspath ../msx2/NextorDriver)
+NEXTOR_NXT := $(BUILD)/CART.NXT
+
+all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin nextor
+
+nextor: | $(BUILD)
+	@$(MAKE) --no-print-directory -C "$(NEXTOR_DIR)" && \
+	    cp "$(NEXTOR_DIR)/Nextor-3.0.RISKYMSX2.ROM" "$(NEXTOR_NXT)" && \
+	    echo "  NXT     $(NEXTOR_NXT)" || \
+	    echo "  WARNING: Nextor ROM build failed, $(NEXTOR_NXT) not updated"
 
 $(BUILD)/$(TARGET).elf: $(OBJS) | $(BUILD)
 	@echo "  LD      $@"

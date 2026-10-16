@@ -1,5 +1,6 @@
 #include "cart.h"
 #include "emu2212.h"
+#include "nextor.h"
 
 
 // GPIOE Pins    0 - 16      Address
@@ -402,6 +403,18 @@ void Init_Cart() {
         SetVTFIRQ ((u32)RunSCCOnly, EXTI3_IRQn, 0, ENABLE);
         break;
 
+    case NEXTOR:
+        // 11 - 1011. Nextor ROM is stored in the cart flash area as an ASCII16K image.
+        GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
+        GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
+        state_pointer->bankOffsets[0] = -0x4000;
+        state_pointer->bankOffsets[8] = -0x8000;
+        Nextor_Init();
+        NVIC_EnableIRQ (EXTI3_IRQn);
+        SetVTFIRQ ((u32)Cart_EXTI0_Nextor_Handler, EXTI3_IRQn, 0, ENABLE);
+        break;
+
     case MSXTERMINAL:
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)RunMSXTerminal, EXTI3_IRQn, 0, ENABLE);
@@ -751,6 +764,66 @@ void RunSCCOnly (void) {
             if (next != buf->tail) {
                 buf->buffer[buf->head] = AddressData;
                 buf->head = next;
+            }
+            return;
+        }
+    }
+}
+
+// Nextor mapper: ASCII16K over the cart flash image, with the mailbox window
+// 0x7FF0..0x7FFF routed to nextor.c in every bank.
+void Cart_EXTI0_Nextor_Handler (void) {
+
+    uint16_t address = (uint16_t)GPIOE->INDR;
+
+    if (((uint16_t)GPIOB->INDR & 0x0020) == 0) {
+        GPIOD->CFGLR = state_pointer->BusOn;
+        if (NEXTOR_IN_MBOX_WINDOW (address)) {
+            uint8_t reg = (uint8_t)(address & 0x0F);
+            if (reg == NEXTOR_MBOX_DATA) {
+                uint8_t *p = g_nextor_mb.res_r;
+                uint8_t v = 0;
+                if (p < g_nextor_mb.res_end) {
+                    v = *p;
+                    g_nextor_mb.res_r = p + 1;
+                }
+                GPIOD->OUTDR = v;
+                EXTI->INTFR = state_pointer->IRQLine3;
+                while ((GPIOB->INDR & 0x0008) == 0) { };
+                GPIOD->CFGLR = state_pointer->BusOff;
+                Nextor_ReadDone ();
+                return;
+            }
+            if (reg == NEXTOR_MBOX_STAT) {
+                GPIOD->OUTDR = g_nextor_mb.status;
+            } else {
+                GPIOD->OUTDR = Nextor_ReadByte (address);
+            }
+        } else if (address < 0x8000) {
+            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[0] + address);
+        } else {
+            GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[8] + address);
+        }
+        EXTI->INTFR = state_pointer->IRQLine3;
+        while ((GPIOB->INDR & 0x0008) == 0) { };
+        GPIOD->CFGLR = state_pointer->BusOff;
+        return;
+    }
+
+    EXTI->INTFR = state_pointer->IRQLine3;
+    if (address > 0xB000)
+        return;
+
+    uint8_t WriteData = ((uint16_t)GPIOD->INDR);
+
+    while (((uint16_t)GPIOB->INDR & 0x0008) == 0) {
+        if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
+            if (NEXTOR_IN_MBOX_WINDOW (address)) {
+                Nextor_WriteByte (address, WriteData);
+            } else if (address == NEXTOR_BANK_REG_PAGE1) {
+                state_pointer->bankOffsets[0] = ((uint32_t)WriteData << NEXTOR_BANK_SHIFT) - 0x4000;
+            } else if (address == NEXTOR_BANK_REG_PAGE2 || address == NEXTOR_BANK_REG_PAGE2_ALT) {
+                state_pointer->bankOffsets[8] = ((uint32_t)WriteData << NEXTOR_BANK_SHIFT) - 0x8000;
             }
             return;
         }

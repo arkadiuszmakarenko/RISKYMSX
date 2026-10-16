@@ -22,7 +22,7 @@ int PointerX = 1;
 int PointerY = 1;
 
 // Shared mapper names for both the type display and the selection list
-static const char *const kMapperNames[11] = {
+static const char *const kMapperNames[12] = {
     "Standard 16KB ROM",
     "Standard 32KB ROM",
     "Standard 48KB or 64KB ROM",
@@ -33,7 +33,8 @@ static const char *const kMapperNames[11] = {
     "ASCII 16KB",
     "NEO 8KB",
     "NEO 16KB",
-    "SCC only (no ROM)"};
+    "SCC only (no ROM)",
+    "Nextor (USB disk)"};
 
 FATFS fs;
 
@@ -118,6 +119,7 @@ void Init_MSXTerminal (void) {
     AutoProgramCart ("CART.A8K", ASCII8k);
     AutoProgramCart ("CART.A16", ASCII16k);
     AutoProgramCart ("CART.N16", NEO16);
+    AutoProgramCart ("CART.NXT", NEXTOR);
     AutoProgramCart ("CART.N8K", NEO8);
 
     menu.FileIndexPage = 1;
@@ -245,6 +247,8 @@ void PrintMapperMenu() {
 
     NewLine();
     PrintMapperList (10);
+    MoveCursor (14, 2);
+    appendString (&scb, kMapperNames[NEXTOR]);
 
     MoveCursor (21, 0);
 
@@ -296,7 +300,7 @@ void ChangeMapperMenu() {
     MoveCursor (2, 0);
     PrintMapperType (type);
     MoveCursor (4, 0);
-    PrintMapperList (11);
+    PrintMapperList (12);
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
     MoveCursor (4, 1);
@@ -441,7 +445,7 @@ void ProcessMSXTerminal (void) {
             }
             // cursor down
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 9) {
+                if (menu.CartTypeIndex != 10) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
@@ -458,8 +462,8 @@ void ProcessMSXTerminal (void) {
                 NewLine();
                 appendString (&scb, " Mapper type:");
                 NewLine();
-                PrintMapperType (menu.CartTypeIndex);
-                ProgramCart (menu.CartTypeIndex, (char *)menu.Filename, (char *)menu.folder);
+                PrintMapperType ((menu.CartTypeIndex == 10) ? NEXTOR : (CartType)menu.CartTypeIndex);
+                ProgramCart ((menu.CartTypeIndex == 10) ? NEXTOR : (CartType)menu.CartTypeIndex, (char *)menu.Filename, (char *)menu.folder);
                 NewLine();
 
                 appendString (&scb, "Programming FAILED!");
@@ -481,7 +485,7 @@ void ProcessMSXTerminal (void) {
             }
             // cursor down
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 10) {
+                if (menu.CartTypeIndex != 11) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }

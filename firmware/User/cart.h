@@ -17,6 +17,7 @@ typedef enum CartType {
     NEO8,
     NEO16,
     SCCONLY,
+    NEXTOR,
     MSXTERMINAL,
 } CartType;
 
@@ -36,6 +37,7 @@ void Run16kASCII (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunNEO16 (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunNEO8 (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunSCCOnly (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
+void Cart_EXTI0_Nextor_Handler (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 void RunMSXTerminal (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
 
 typedef struct _CART_CFG {

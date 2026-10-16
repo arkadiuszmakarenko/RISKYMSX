@@ -5,6 +5,7 @@
 #include "scc.h"
 #include "MSXTerminal.h"
 #include "usb_disk.h"
+#include "nextor.h"
 
 extern CartType type;
 
@@ -29,6 +30,8 @@ int main (void) {
         }
         if (type == MSXTERMINAL) {
             ProcessMSXTerminal();
+        } else if (type == NEXTOR) {
+            Nextor_Service();
         }
     }
 }
