@@ -119,12 +119,67 @@ void Init_MSXTerminal (void) {
     AutoProgramCart ("CART.A8K", ASCII8k);
     AutoProgramCart ("CART.A16", ASCII16k);
     AutoProgramCart ("CART.N16", NEO16);
-    AutoProgramCart ("CART.NXT", NEXTOR);
     AutoProgramCart ("CART.N8K", NEO8);
 
     menu.FileIndexPage = 1;
     strcpy ((char *)menu.folder, "");
     flushBuffer (&icb);
+    PrintMainMenu (menu.FileIndexPage);
+}
+
+// Print one line of at most 30 characters (the screen is 32 wide).
+static void Line (const char *text) {
+    appendString (&scb, text);
+    NewLine();
+}
+
+// "N": flash CART.NXT from the USB root as the Nextor ROM.
+static void NextorFlashFromUsb (void) {
+    FIL f;
+    FRESULT fres;
+
+    ClearScreen();
+    MovePointer (0xFF, 0xFF);
+    Line (" NEXTOR ROM");
+    NewLine();
+    fres = f_open (&f, "CART.NXT", FA_READ);
+    if (fres != FR_OK) {
+        Line (" CART.NXT not found in the");
+        Line (" root of the USB stick.");
+        NewLine();
+        Line (" Copy it there (FAT16/32)");
+        Line (" and press N again.");
+        waitBufferEmpty (&scb);
+        Delay_Ms (4000);
+        PrintMainMenu (menu.FileIndexPage);
+        return;
+    }
+    f_close (&f);
+
+    Line (" CART.NXT found.");
+    NewLine();
+    Line (" The Nextor disk must be");
+    Line (" a separate USB stick:");
+    Line (" - MBR, not GPT");
+    Line (" - FAT16 (FAT12/32 ok)");
+    Line (" - 512-byte sectors");
+    Line (" - no exFAT / NTFS");
+    Line (" - NEXTOR.SYS and");
+    Line ("   COMMAND2.COM in root");
+    waitBufferEmpty (&scb);
+    Delay_Ms (5000);
+
+    ClearScreen();
+    MovePointer (0xFF, 0xFF);
+    Line (" Programming file:");
+    Line (" CART.NXT");
+    NewLine();
+    Line (" Mapper type:");
+    PrintMapperType (NEXTOR);
+    ProgramCart (NEXTOR, "CART.NXT", "/");
+    // Only reached when programming did not reboot.
+    waitBufferEmpty (&scb);
+    Delay_Ms (3000);
     PrintMainMenu (menu.FileIndexPage);
 }
 
@@ -221,7 +276,7 @@ void PrintMainMenu (int page) {
     appendString (&scb, location);
 
     MoveCursor (23, 0);
-    appendString (&scb, " ARROWS,RET,ESC,1-MAP,BKSP-..");
+    appendString (&scb, " ARROWS,RET,ESC,1-MAP,N-NXT,BS");
 
     MoveCursor (1, 1);
     MovePointer (PointerX, PointerY);
@@ -247,8 +302,6 @@ void PrintMapperMenu() {
 
     NewLine();
     PrintMapperList (10);
-    MoveCursor (14, 2);
-    appendString (&scb, kMapperNames[NEXTOR]);
 
     MoveCursor (21, 0);
 
@@ -420,6 +473,11 @@ void ProcessMSXTerminal (void) {
                     return;
                 }
             }
+            // "N" flash Nextor ROM
+            if (key == 0x4E || key == 0x6E) {
+                NextorFlashFromUsb();
+                return;
+            }
             // "1" change mapper
             if (key == 0x31) {
                 menu.CartTypeIndex = 0;
@@ -445,7 +503,7 @@ void ProcessMSXTerminal (void) {
             }
             // cursor down
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 10) {
+                if (menu.CartTypeIndex != 9) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
@@ -462,8 +520,8 @@ void ProcessMSXTerminal (void) {
                 NewLine();
                 appendString (&scb, " Mapper type:");
                 NewLine();
-                PrintMapperType ((menu.CartTypeIndex == 10) ? NEXTOR : (CartType)menu.CartTypeIndex);
-                ProgramCart ((menu.CartTypeIndex == 10) ? NEXTOR : (CartType)menu.CartTypeIndex, (char *)menu.Filename, (char *)menu.folder);
+                PrintMapperType ((CartType)menu.CartTypeIndex);
+                ProgramCart ((CartType)menu.CartTypeIndex, (char *)menu.Filename, (char *)menu.folder);
                 NewLine();
 
                 appendString (&scb, "Programming FAILED!");
