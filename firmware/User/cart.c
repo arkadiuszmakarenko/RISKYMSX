@@ -404,12 +404,17 @@ void Init_Cart() {
         break;
 
     case NEXTOR:
-        // 11 - 1011. Nextor ROM is stored in the cart flash area as an ASCII16K image.
+        // 11 - 1011. Nextor ROM is stored in the cart flash area as an
+        // ASCII16K image. SCC_Init mirrors the SCC Only mapper: the
+        // Nextor handler now also decodes the SCC register window
+        // 0x9000..0x98FF at the top-level slot, so SCC games can be
+        // loaded through Nextor.
         GPIO_WriteBit (GPIOA, GPIO_Pin_0, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit (GPIOA, GPIO_Pin_3, Bit_RESET);
         state_pointer->bankOffsets[0] = -0x4000;
         state_pointer->bankOffsets[8] = -0x8000;
+        SCC_Init();
         Nextor_Init();
         NVIC_EnableIRQ (EXTI3_IRQn);
         SetVTFIRQ ((u32)Cart_EXTI0_Nextor_Handler, EXTI3_IRQn, 0, ENABLE);
@@ -771,7 +776,11 @@ void RunSCCOnly (void) {
 }
 
 // Nextor mapper: ASCII16K over the cart flash image, with the mailbox window
-// 0x7FF0..0x7FFF routed to nextor.c in every bank.
+// 0x7FF0..0x7FFF routed to nextor.c in every bank. The SCC register window
+// (0x9000..0x98FF) is decoded at the top-level slot - always on, like
+// RunSCCOnly - so SCC games load via Nextor while the rest of the cart
+// behaves as before. SCC writes are queued (address, data) for the DMA-side
+// SCC state update; SCC reads of 0x9800..0x98FF go through SCC_read.
 void Cart_EXTI0_Nextor_Handler (void) {
 
     uint16_t address = (uint16_t)GPIOE->INDR;
@@ -799,6 +808,18 @@ void Cart_EXTI0_Nextor_Handler (void) {
             } else {
                 GPIOD->OUTDR = Nextor_ReadByte (address);
             }
+        } else if (address >= 0x9000 && address <= 0x98FF) {
+            // SCC register area, served at the top-level slot - same
+            // window RunSCCOnly decodes, same model: 0x9800..0x98FF is
+            // readable only when scc->active (i.e. after a 0x3F write
+            // to 0x9000, the way the SCC chip enables itself). The
+            // rest of the SCC range (0x9000..0x97FF) is write-only and
+            // returns 0xFF on read.
+            if (scc->active && address >= 0x9800) {
+                GPIOD->OUTDR = (uint8_t)SCC_read (scc, address);
+            } else {
+                GPIOD->OUTDR = 0xFFU;
+            }
         } else if (address < 0x8000) {
             GPIOD->OUTDR = *(cartpnt + state_pointer->bankOffsets[0] + address);
         } else {
@@ -811,7 +832,10 @@ void Cart_EXTI0_Nextor_Handler (void) {
     }
 
     EXTI->INTFR = state_pointer->IRQLine3;
-    if (address > 0xB000)
+    // 0xB000..0xFFFF is MSX RAM / mirror territory: not ours. The SCC
+    // window at 0x9000..0x98FF must still capture writes even though
+    // the address is below 0xB000, so guard with the standard range.
+    if (address >= 0xB000)
         return;
 
     uint8_t WriteData = ((uint16_t)GPIOD->INDR);
@@ -820,6 +844,15 @@ void Cart_EXTI0_Nextor_Handler (void) {
         if ((((uint16_t)GPIOB->INDR & 0x0010) == 0)) {
             if (NEXTOR_IN_MBOX_WINDOW (address)) {
                 Nextor_WriteByte (address, WriteData);
+            } else if (address >= 0x9000 && address <= 0x98FF) {
+                // SCC write: queue (address<<16 | data) for the DMA-side
+                // SCC state update, exactly like RunSCCOnly does.
+                uint32_t AddressData = ((uint32_t)address << 16) | WriteData;
+                uint8_t next = (buf->head + 1 >= BUFFER_SIZE) ? 0 : buf->head + 1;
+                if (next != buf->tail) {
+                    buf->buffer[buf->head] = AddressData;
+                    buf->head = next;
+                }
             } else if (address == NEXTOR_BANK_REG_PAGE1) {
                 state_pointer->bankOffsets[0] = ((uint32_t)WriteData << NEXTOR_BANK_SHIFT) - 0x4000;
             } else if (address == NEXTOR_BANK_REG_PAGE2 || address == NEXTOR_BANK_REG_PAGE2_ALT) {
