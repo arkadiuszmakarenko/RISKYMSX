@@ -1,0 +1,1269 @@
+	.z80
+	name('drv')
+	title	MSX-DOS 2 ROM   Copyright (1986)  IS Systems Ltd.
+	subttl	Substitute for the dummy disk driver module
+
+; In MSX-DOS 2.3x, this was a dummy disk driver module that simply returned errors when called.
+; Now this contains code that redirects calls to the driver bank.
+
+;-----------------------------------------------------------------------------
+;
+	INCLUDE	macros.inc
+	INCLUDE	const.inc
+	INCLUDE ../../sdk/asm/constants/msx_bios.inc
+	INCLUDE ../../sdk/asm/constants/msx_workarea.inc
+;
+;-----------------------------------------------------------------------------
+;
+SCANKEYS equ 41EFh-3    ;As defined in init.mac
+
+PRINTL	macro	NAME,VALUE
+	if2
+	.PRINTX % Size of NAME = VALUE bytes %
+	endif
+	endm
+
+ALIGN	macro	ADDR
+    if $-START gt ADDR-ORIGIN
+	error	<Code overwraps at ADDR>
+	PRINTL	<wrap at ADDR>,%($-START)-(ADDR-ORIGIN)
+	org	ADDR-ORIGIN
+    else
+	PRINTL	<hole at ADDR>,%(ADDR-ORIGIN)-($-START)
+	defs	(ADDR-ORIGIN)-($-START),0
+    endif
+endm
+
+ORIGIN	equ	7700h
+
+;The bank header constants (DRIVER_EXTRA_AREA is the one needed here, for the
+;ALIGN at the end of the file) come from the SDK. They are already exported
+;as public symbols by data.mac, so redefine `const` as a plain `equ` before
+;including the file to avoid duplicate public symbols at link time.
+
+const	macro	name,value
+name	equ	(value)
+	endm
+
+	INCLUDE ../../sdk/asm/constants/rom_bank_header.inc
+
+    ALIGN 7700h
+;
+;       External Routines.
+;
+;	extrn	PROMPT,SETINT,PRVINT,GETSLOT,GETWRK,DIV16,ENASLT,XFER
+;
+;       External Variables.
+;
+;	extrn	$SECBUF,RAMAD0,RAMAD1,RAMAD2,RAMAD3,RAWFLG
+;
+;       Public Values.
+;
+	public	DEFDPB
+;
+
+
+;-----------------------------------------------------------------------------
+
+;This routine is invoked in disk emulation mode prior to any disk access.
+;If checks if a valid file change key is being pressed, and if so,
+;reloads the emulation data file and updates the information in KERNEX_DOS1.
+;If no suitable key is being pressed, or if change is performed ok, returns Z.
+;If there is an error reading the emulation data file, returns NZ and A=Error code.
+
+CHGFILE:
+	push	hl
+	push	de
+	push	bc
+	push	ix
+	push	iy
+	call	CHGF2
+	pop	iy
+	pop	ix
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+CHGF2:
+	ld	ix,(KERNEX_DOS1##)
+
+    call GETCURKEY
+    or a
+    ret z
+    cp 0FFh
+    jr nz,CHGF3
+
+	call	CAPSON
+    call WAIT_KEY_RELEASE ;GRAPH pressed: wait for other keys to release...
+
+CHGWA2:
+	call	GETCURKEY	;...then to be pressed again.
+	or	a
+	jr	z,CHGWA2
+
+    cp 0FFh      ;User changed his mind and pressed GRAPH 
+    jr nz,CHGF3
+
+    call WAIT_KEY_RELEASE
+    ret
+
+CHGF3:
+	ld	c,a
+	call	CAPSON
+
+	;--- The key with index C is pressed
+
+	;> Do nothing if chosen file is the same currently in use
+
+	ld	a,(ix+DSK_CURRENT_FILE_INDEX##)
+	and	3Fh
+	cp	c
+	call	z,CAPSOFF
+	ret	z
+
+	;> Read emulation data file
+
+	push	bc
+
+	ld	a,(ix+EMU_FILE_DEVICE_NUMBER##) ;data file dev index
+
+	ld	l,(ix+EMU_FILE_FIRST_SECTOR##)
+	ld	h,(ix+EMU_FILE_FIRST_SECTOR##+1)
+	ld	(TMP_SEC##),hl
+	ld	l,(ix+EMU_FILE_FIRST_SECTOR##+2)
+	ld	h,(ix+EMU_FILE_FIRST_SECTOR##+3)
+	ld	(TMP_SEC##+2),hl
+
+	ld	iy,(0F348h-1)	;Master controller slot
+	ld	hl,DRIVER.READ_WRITE_ENTRY##
+	ld	(BK4_ADD##),hl
+	ld	b,1
+	ld	hl,($SECBUF##)
+	ld	de,TMP_SEC##
+	or	a
+
+	push	ix
+	ld	ix,CALDRV##
+	call	CALSLT	;Call DEV_RW
+	pop	ix
+	pop	bc
+	call	CAPSOFF
+	or	a
+	ret	nz
+
+	;> Set the new file data in work area
+
+    ld a,(ix+DSK_CURRENT_FILE_INDEX##)
+    and 11000000b   ;In emulation mode flag + Russian keyboard flag
+    ld b,a
+	ld	a,c
+    or b
+	ld	(ix+DSK_CURRENT_FILE_INDEX##),a
+	set	7,(ix+EMU_FILE_DEVICE_NUMBER##) ;File changed flag
+	
+	dec	a
+	add	a,a		;Each entry is 8 bytes
+	add	a,a
+	add	a,a
+	ld	l,a
+	ld	h,0
+	ld	bc,24
+	add	hl,bc
+	ld	de,($SECBUF##)
+	add	hl,de	;HL = Pointer to boot file data
+	push	ix
+	pop	de
+	inc	de
+	inc	de  ;DE must point to DSK_CURRENT_FILE_DEVICE_NUMBER in work area
+	ld	bc,7
+	ldi	;Copy device number, skip unused field (was LUN number in Nextor 2), then copy rest of data
+	inc hl
+	ldir
+
+    ld a,(ix+DSK_CURRENT_FILE_DEVICE_NUMBER##) ;set DSK_CURRENT_FILE_DEVICE_NUMBER same of data file if 0
+    or a
+    jr nz,CHGF4
+    ld a,(ix+EMU_FILE_DEVICE_NUMBER##)
+	and 01111111b
+    ld (ix+DSK_CURRENT_FILE_DEVICE_NUMBER##),a
+
+CHGF4::
+	xor	a
+	ret
+
+
+WAIT_KEY_RELEASE:
+    call	GETCURKEY
+	or	a
+	jr	nz,WAIT_KEY_RELEASE
+    ret
+
+
+	;Return in A the index of currently pressed key, 0 if none, FFh is GRAPH
+	;Input: IX = Pointer to emulation data area
+GETCURKEY:
+    ex af,af'
+    ld a,(ix+DSK_CURRENT_FILE_INDEX##)
+    rlca
+    rlca
+    rlca
+    and 1   ;Russian keyboard?
+    ex af,af'
+    push ix
+	ld	ix,SCANKEYS
+	xor a
+	call	CALBNK
+    pop ix
+    bit 6,h
+    ld a,0FFh
+    ret nz
+    ld c,b
+	ld b,(ix+DSK_EMULATED_FILES_COUNT##)
+    ld a,1
+
+    ;HLDEC = key statuses
+    ;B = Keys left to check
+    ;A = Current key index
+    ;We do an initial rotation because we want to start at key 1.
+CHGLOOP:
+	srl h
+    rr l
+    rr d
+    rr e
+    rr c
+    bit 0,c
+    ret nz
+
+    inc a
+    djnz CHGLOOP
+
+    xor a
+    ret
+
+CAPSON:
+	in	a,(0AAh)
+	and	10111111b
+	out	(0AAh),a
+	ret
+
+CAPSOFF:
+	push	af
+	in	a,(0AAh)
+	or	01000000b
+	out	(0AAh),a
+	pop	af
+	ret
+
+
+
+
+    ALIGN 781Fh
+;-----------------------------------------------------------------------------
+;
+; Null message. The address of this message can be returned by
+; the CHOICE routine in the disk driver when the device can't be formatted.
+
+null_message:
+	db	0
+
+; "Single side/double side" message, can be used when driving
+; a legacy MSX disk drive
+
+	db	"1 - Single side",13,10
+	db	"2 - Double side",13,10
+	db	0
+
+;-----------------------------------------------------------------------------
+;
+; Entries for direct calls.
+; Calls to these addresses will be translated to calls to the DIRECT_n
+; entry points in the driver bank.
+
+    ALIGN 7850h
+
+DIRCALL:
+	call	DO_DIRCALL
+	call	DO_DIRCALL
+	call	DO_DIRCALL
+	call	DO_DIRCALL
+	call	DO_DIRCALL
+
+DO_DIRCALL:
+	pop	ix
+	push	bc
+	ld	bc,DRIVER.DIRECT0_ENTRY##-DIRCALL-3
+	add	ix,bc
+	pop	bc
+	jp	DO_CALBNK
+
+
+;-----------------------------------------------------------------------------
+;
+; Entry for disk routine DSKIO. It is somewhat complex:
+; if transfer involves page 1, then 1-sector transfers are done
+; by using XFER and SECBUF.
+;
+
+DIO_ENTRY::
+	push	af
+	call	GET_KERNEX_DOS1_PNT
+	jp	nc,DRV_ERROR_12
+
+	ld	a,(iy+UD1_DEVICE_NUMBER##)
+	or	a
+	jp	z,DISKERR
+
+	;--- Ghost drive disk swap check ---
+	;
+	;For FDD entries (bit 6 of UD1_RELATIVE_DRIVE set),
+	;UD1_FIRST_ABSOLUTE_SECTOR byte 0 encodes ghost state:
+	;  bits 0-1: 00=no ghost, 01=master, 10=ghost
+	;  bit 7: 1=this was last accessed
+
+	bit	6,(iy+UD1_RELATIVE_DRIVE##)
+	jr	z,_no_ghost_1		;Not a floppy
+	ld	a,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)
+	and	03h
+	jr	z,_no_ghost_1		;No ghost pair
+	bit	7,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)
+	jr	nz,_no_ghost_1		;This drive was last accessed
+	call	GHOST_PROMPT
+
+_no_ghost_1:
+	;--- End ghost drive check ---
+
+	call	IS_EMU
+	jp	c,DIOEN_ISEMU
+
+    ;>>> NOT in disk emulation mode
+
+DIOEN_NOEMU:
+	call	HAS_PARTITION
+	call	nz,ASSIGN_PARTITION
+	jp	nz,POP_CONV_ERR
+	jr	DIOEN3
+
+	;>>> In disk emulation mode
+
+DIOEN_ISEMU:
+	pop	af
+	push	af
+	or	a
+
+	jp	nz,DISKERR	;Drive number must be 0
+
+	call CHGFILE
+	jr	z,DIOCHGFOK
+	pop	bc
+	ld	b,0
+	ret
+DIOCHGFOK:
+
+	; Moan if sector number + sector count > dsk file size
+
+	push	hl
+	push	de
+	ld	ix,(KERNEX_DOS1##)
+	ld	e,(ix+DSK_CURRENT_FILE_SECTORS_COUNT##)
+	ld	d,(ix+DSK_CURRENT_FILE_SECTORS_COUNT##+1) ;DE = dsk size in sectors
+
+	pop	hl
+	push	hl
+	push	bc
+	ld	c,b
+	ld	b,0
+	add	hl,bc	;HL = Sector num + count
+	pop	bc
+
+	dec	hl
+	call	COMP16
+	pop	de
+	pop	hl
+	jp	nc,DIO_RNF
+
+	; Wait for VDP interrupt.
+	; This introduces a small delay that is required by some games.
+
+	di
+	ld	a,2
+	out	(99h),a
+	ld	a,8fh
+	out	(99h),a
+WVDP:
+	in	a,(99h)
+	and	81h
+	dec	a
+	jr	z,WVDP
+	xor	a
+	out	(99h),a
+	ld	a,8fh
+	out	(99h),a
+
+	call	CAPSON
+	pop	af
+	call	DIOEN2
+	call	CAPSOFF
+	ret
+
+DIOEN2:
+	push	af
+    ld iy,(KERNEX_DOS1)
+DIOEN3:
+
+    ; In this point one of these is true:
+    ;
+    ; - We are in disk emulation mode, and IY points to the beginning
+    ;   of the work area for emulation mode.
+    ;
+    ; - We are in normal DOS 1 mode, and IY points to the entry
+    ;   for the drive in KERNEX_DOS1.
+    ;
+    ; The following code is common to both cases, that's why
+    ; device number, and first sector number must be stored
+    ; at the same offset in both the KERNEX_DOS1 entries (UD1_*)
+    ; and the disk emulation work area (DSK_*).
+
+	push	hl
+	ld	hl,0			;Default: base sector 0 (for FDD)
+	bit	6,(iy+UD1_RELATIVE_DRIVE##)
+	jr	nz,_dio_base_done
+	ld	l,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)
+	ld	h,(iy+UD1_FIRST_ABSOLUTE_SECTOR##+1)
+_dio_base_done:
+	add	hl,de
+	ld	ix,TMP_SEC##
+	ld	(ix),l	;Calculate absolute sector number
+	ld	(ix+1),h
+	ld	hl,0			;Default: high word 0 (for FDD)
+	bit	6,(iy+UD1_RELATIVE_DRIVE##)
+	jr	nz,_dio_base_hw
+	ld	l,(iy+UD1_FIRST_ABSOLUTE_SECTOR##+2)
+	ld	h,(iy+UD1_FIRST_ABSOLUTE_SECTOR##+3)
+_dio_base_hw:
+	ld	de,0
+	adc	hl,de
+	ld	(ix+2),l
+	ld	(ix+3),h
+	pop	hl		;Restore transfer address
+	ld	de,TMP_SEC##
+	
+	pop	af                   ;From here Cy must be kept untouched
+	ld	a,(iy+UD1_DEVICE_NUMBER##) ;Set device number
+
+	; If the transfer starts and ends in page 0,
+	; ir of it starts in page 2 or 3,
+	; do all the transfer with a simple call to the driver
+
+	push	af
+	bit	7,h
+	jp	nz,DIO_NOP1	;Transfer starts in page 2 or 3?
+	push	hl
+	push	bc
+	sla	b
+	ld	c,0	;Now BC = number of bytes to read
+	add	hl,bc
+	dec	hl	;Now HL = last read or written address
+	ld	a,h
+	and	11000000b	;Last accessed address in page 0?
+	pop	bc
+	pop	hl
+	jp	z,DIO_NOP1
+	pop	af
+
+	jp	c,DIO_WR_LOOP
+
+	; Loop for reading to page 1
+
+DIO_RD_LOOP:
+	push	af
+	bit	7,h
+	jp	nz,DIO_NOP1	;If not in page 0/1 anymore,
+	push	bc		;do the remaining transfer
+	push	de		;with a simple call to the driver
+	push	hl
+
+	or	a
+	call DIO_DO_CALDRV
+	jr	nc,DIO_RD_OK
+
+	pop	hl	;On disk error, just return
+	pop	de
+	pop	bc
+	pop	bc	;Not POP AF, to preserve error info
+	jp	CONV_ERR
+DIO_RD_OK:
+	
+	ld	hl,($SECBUF##)
+	pop	de	;Was PUSH HL
+	push	de
+	ld	bc,512
+	call	XFER##
+
+	pop	hl
+	pop	de
+	pop	bc
+	inc	h
+	inc	h	;Increase destination address by 512
+	call	DIO_INC_DE
+	pop	af
+	djnz	DIO_RD_LOOP
+
+	xor	a
+	ret
+
+	; Loop for writing from page 1
+
+DIO_WR_LOOP:
+	push	af
+	bit	7,h
+	jr	nz,DIO_NOP1	;If not in page 0/1 anymore,
+	push	hl		;do the remaining transfer
+	push	bc		;with a simple call to the driver
+	push	de
+
+	ld	de,($SECBUF##)
+	ld	bc,512
+	call	XFER##	;Preserves AF
+
+	pop	de
+	pop	bc
+	push	bc
+	push	de
+
+	scf
+	call DIO_DO_CALDRV
+	jr	nc,DIO_WR_OK
+
+	pop	de	;On disk error, just return
+	pop	bc
+	pop	hl
+	pop	hl	;Not POP AF, to preserve error info
+	jp	CONV_ERR
+
+DIO_WR_OK:
+	pop	de
+	pop	bc
+	pop	hl
+	inc	h
+	inc	h	;Increase destination address by 512
+	call	DIO_INC_DE
+	pop	af
+	djnz	DIO_WR_LOOP
+
+	xor	a
+	ret
+
+	; Read or write one sector via SECBUF
+
+DIO_DO_CALDRV:
+	ld	hl,($SECBUF##)
+	ld	b,1
+
+	ld	ix,DRIVER.READ_WRITE_ENTRY##
+	ex	af,af'
+	ld	a,DV_BANK##
+	call	CALBNK
+	or a
+	ret z
+	scf
+	ret
+
+
+; Jump here when the transfer can be done in a single step
+; (no page 1 involved)
+
+DIO_NOP1:
+	pop	af
+	ld	ix,DRIVER.READ_WRITE_ENTRY##
+	call	DO_CALBNK
+	jp	CONV_ERR
+
+
+;This subroutine increases the 4 byte sector number pointed by DE by one.
+;Corrupts AF, IX.
+
+DIO_INC_DE:
+	push	hl
+	push	de
+	pop	ix
+	ld	l,(ix)
+	ld	h,(ix+1)
+	inc	hl
+	ld	(ix),l
+	ld	(ix+1),h
+	ld	a,h
+	or	l	
+	jr	nz,DIO_INC_DE_DVB_END
+	ld	l,(ix+2)
+	ld	h,(ix+3)
+	inc	hl
+	ld	(ix+2),l
+	ld	(ix+3),h
+DIO_INC_DE_DVB_END:
+	pop	hl
+	ret
+
+DRV_ERROR_12:
+	pop af
+	ld a,12	;"Other error"
+	scf
+	ret
+
+;-----------------------------------------------------------------------------
+;
+	; General disk routines entry
+
+	;--- Check disk change status
+
+CHG_ENTRY::
+	call	GET_KERNEX_DOS1_PNT
+	jp	nc,DRV_ERROR_12
+
+	ld	d,a
+	ld	a,(iy+UD1_DEVICE_NUMBER##)
+	or	a
+	jp	z,DISKERR
+
+	call	IS_EMU
+	jp	nc,CHGEN_NOEMU
+
+	;>>> In disk emulation mode
+
+	ld	a,d
+	or	a
+	jp	nz,DISKERR	;Drive number must be 0
+
+	call	CHGFILE
+	ret	nz
+
+	xor	a
+	ld	ix,(KERNEX_DOS1##)
+	bit	7,(ix+EMU_FILE_DEVICE_NUMBER##)
+	res	7,(ix+EMU_FILE_DEVICE_NUMBER##)
+	ld	b,1
+	ret	z
+	ld	a,d
+	jp	DPBEN2
+
+	;>>> NOT in disk emulation mode
+
+CHGEN_NOEMU:
+
+	;Return "changed" if partition has changed, "unchanged" otherwise
+
+	ld	a,(iy+UD1_RELATIVE_DRIVE##)
+	ld	c,a
+	res	7,(iy+UD1_RELATIVE_DRIVE##)
+	and	10000000b	;Check partition changed flag
+	ld	b,-1
+	ld	a,c
+	jr	nz,DO_MKDPB	;"Changed" if partition has changed
+	xor	a
+	ld	b,1	;"Unchanged" if partition has not changed
+	ret
+
+	;--- Obtain DPB, input: IY=Entry in KERNEX_DOS1, HL=Address for DPB
+
+DPB_ENTRY::
+	call	GET_KERNEX_DOS1_PNT
+	jp	nc,DRV_ERROR_12
+
+	call	IS_EMU
+	jr	nc,DO_MKDPB
+
+	;>>> In disk emulation mode
+
+	;or	a
+	;jp	nz,DISKERR	;Drive number must be 0
+
+	call	CHGFILE
+	ret	nz
+
+	jr	DPBEN2
+
+	;>>> NOT in disk emulation mode
+
+DO_MKDPB:
+	call	HAS_PARTITION
+	call	nz,ASSIGN_PARTITION
+	jp	nz,CONV_ERR
+
+DPBEN2:
+	push	hl
+	xor	a			;Default: sector 0 (for FDD)
+	bit	6,(iy+UD1_RELATIVE_DRIVE##)
+	jr	nz,_dpb_b0_done
+	ld	a,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)
+_dpb_b0_done:
+	ld	(TMP_SEC##),a
+	ld	a,(iy+UD1_FIRST_ABSOLUTE_SECTOR##+1)
+	ld	(TMP_SEC##+1),a
+	ld	a,(iy+UD1_FIRST_ABSOLUTE_SECTOR##+2)
+	ld	(TMP_SEC##+2),a
+	ld	a,(iy+UD1_FIRST_ABSOLUTE_SECTOR##+3)
+	ld	(TMP_SEC##+3),a
+	ld	a,(iy+UD1_DEVICE_NUMBER##)
+	ld	b,1
+	ld	de,TMP_SEC##
+	ld	hl,($SECBUF##)
+	or	a
+	ld	ix,DRIVER.READ_WRITE_ENTRY##
+	call	DO_CALBNK
+	pop	de
+	inc	de
+	or	a
+	jp	nz,CONV_ERR
+
+	ld	hl,($SECBUF##)
+	ld	bc,MKDPB##
+	ld	(BK4_ADD##),bc
+	call	C4PBK##
+
+	xor	a
+	ret
+	
+	;--- Format choice
+	;
+	;    These are the disk ROM compatible CHOICE and DSKFMT entry points
+	;    for Nextor drives in DOS 1 mode; they always answer "can't format".
+	;    This is NOT the path used by the _FORMAT function call (nor by the
+	;    $FORMAT BIOS call, which is redirected too): formatting in DOS 1
+	;    mode is handled by F_FORMAT in bank 6, which does forward the
+	;    request to the driver for floppy disk devices.
+
+CHO_ENTRY::
+	;call	GET_KERNEX_DOS1_PNT
+	;jp	nc,CHO_ENTRY_CANTFORMAT
+
+CHO_ENTRY_CANTFORMAT:
+	ld	hl,781fh	;Formatting is not supported via this entry point
+	ret
+
+	;--- Format device
+
+FMT_ENTRY::
+	;call	GET_KERNEX_DOS1_PNT
+	;jp	nc,FMT_ENTRY_CANTFORMAT
+
+FMT_ENTRY_CANTFORMAT:
+	ld	a,16		;Formatting is not supported via this entry point
+	scf
+	ret
+
+	;--- Motor off
+
+MOF_ENTRY::
+	;call	GET_KERNEX_DOS1_PNT
+	;jp	nc,MOF_ENTRY_NOOP
+
+MOF_ENTRY_NOOP:
+	ret
+
+DO_CALBNK:
+	ex	af,af'
+	ld	a,DV_BANK##
+	jp	CALBNK
+
+
+	;--- Jump here when an operation is requested
+	;    on an existing, but empty, entry in KERNEX_DOS1
+
+DISKERR:
+	ld	a,12
+	scf
+	ret
+
+DIO_RNF:
+	pop	af
+	ld	a,8
+	ld	b,0
+	scf
+	ret
+
+;-----------------------------------------------------------------------------
+;
+; Check if the relative drive pointed by A refers to a Nextor driver
+; and we are in DOS 1 mode. If so, returns Cy=1 and IY=pointer to the
+; table entry in KERNEX_DOS1. Otherwise (DOS 2 mode, or no Nextor driver) returns Cy=0.
+; Corrupts IY, F.
+
+GET_KERNEX_DOS1_PNT:
+	push	af
+	ld	a,(DOS_VER##)
+	or	a
+	jr	nz,IS_NOT_DVB
+
+	ld	iy,(KERNEX_DOS1##)
+	ld_ a,iyh
+	or_ iyl
+	jr	z,IS_NOT_DVB
+
+	ld	a,(iy)
+	and	80h
+	jr	z,IS_DVB_NOEMU
+
+	pop	af	;In emulation mode: return Cy=1 only if drive is 0
+	or	a
+	scf
+	ret	z
+
+	ccf
+	ret
+
+IS_DVB_NOEMU:
+	pop	af
+	push	af
+	push	bc
+	ld	c,a	;C = Drive number
+	ld	b,(iy)	;B = num of entries in KERNEX_DOS1
+	inc	iy
+
+IS_DVB_LOOP:
+    push bc
+	ld	a,(KSLOT##)
+	ld b,(iy+UD1_SLOT##)
+	res 6,b
+	cp b
+	pop bc	
+	jr	nz,DIO_NEXT
+
+	ld	a,(iy+UD1_RELATIVE_DRIVE##)
+	and	00011111b	;Ignore partition changed and floppy flags
+	cp	c
+	jr	nz,DIO_NEXT
+
+DIO_OK:
+	pop	bc	;Found, return Cy=1
+	pop	af
+	scf
+	ret
+
+DIO_NEXT:
+	push	bc
+	ld	bc,UD1_SIZE##
+	add	iy,bc
+	pop	bc
+	djnz	IS_DVB_LOOP
+	pop	bc
+
+IS_NOT_DVB:
+	pop	af
+	scf
+	ccf
+	ret
+
+
+;--------------
+;
+; Check if we are in disk emulation mode
+; Assumes GET_KERNEX_DOS1_PNT has returned Cy=1 (that is, in DOS 1 mode and KERNEX_DOS1 exists)
+; Returns Cy=1 if in emulation mode, Cy=0 if not
+; Corruputs: F
+
+IS_EMU:
+	push af
+	ld	a,(DOS_VER##)
+	or	a
+	jr nz,IS_NO_EMU
+	pop af
+
+	push	iy
+	ld	iy,(KERNEX_DOS1##)
+	bit	7,(iy)
+	pop	iy
+	scf
+	ret	nz
+	ccf
+	ret
+
+IS_NO_EMU:
+	pop af
+	or a
+	ret
+
+;-----------------------------------------------------------------------------
+;
+; Check if the entry of KERNEX_DOS1 pointed by IY has a partition assigned.
+; Return A=0, Z if partition assigned; A<>0, NZ if NO partition assigned.
+
+HAS_PARTITION:
+	ld	a,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)  ;No partition assigned
+	and	(iy+UD1_FIRST_ABSOLUTE_SECTOR##+1)  ;if sector number is -1
+	and	(iy+UD1_FIRST_ABSOLUTE_SECTOR##+2)
+	and	(iy+UD1_FIRST_ABSOLUTE_SECTOR##+3)
+	inc	a
+	jr	z,RET_NZ
+	xor	a
+	ret
+RET_NZ:
+	inc	a
+	ret
+
+
+;-----------------------------------------------------------------------------
+;
+; Assign the first available FAT12 primary partition to
+; the device whose entry of KERNEX_DOS1 pointed by IY.
+; Returns disk error code in A, with Z appropriately set.
+; Corrupts: AF, IX.
+
+MBR_PSTART	equ	01BEh	;Start of partition table in MBR
+MBR_PSIZE	equ	16	;Size of partition table entry
+POFF_TYPE	equ	4	;Offset of partition type in p. table entry
+POFF_PSTART	equ	8	;Offset of partition start in p. table entry
+POFF_PSIZE	equ	12	;Offset of partition size in p. table entry
+PT_FAT12	equ	1	;Partition type code for FAT12
+
+ASSIGN_PARTITION:
+	push bc
+	push de
+	push hl
+	push iy
+
+	pop hl
+	push hl
+
+	ld b,(iy+UD1_DEVICE_NUMBER##)
+	ld a,4
+    ld d,0
+	ld	ix,AUTO_ASPART##
+	call	CALBNK
+
+    pop iy
+	pop hl
+	pop de
+	pop bc
+
+	or a
+	ret z
+	ld a,12
+	ret
+
+
+;-----------------------------------------------------------------------------
+;
+; Read the MBR of the device whose entry in KERNEX_DOS1
+; is pointed by IY. Returns the disk error in A.
+; Corrupts AF, BC, DE, HL, IX, IY.
+
+READ_BOOT:
+	ld	de,0
+	ld	(TMP_SEC##),de
+	ld	(TMP_SEC##+2),de
+	ld	a,(iy+UD1_DEVICE_NUMBER##)
+	ld	b,1
+	ld	de,TMP_SEC##
+	ld	hl,($SECBUF##)
+	or	a
+	ld	ix,DRIVER.READ_WRITE_ENTRY##
+	jp	DO_CALBNK
+
+
+;-----------------------------------------------------------------------------
+;
+; Convert the disk error returned by a Nextor routine,
+; into its old MSX-DOS equivalent
+
+POP_CONV_ERR:
+	inc	sp
+	inc	sp
+
+CONV_ERR:
+	or	a
+	ret	z
+
+	push	bc
+	ld	b,0
+	cp	.WPROT##
+	jr	z,CONV_ERR_END
+	ld	b,2
+	cp	.NRDY##
+	jr	z,CONV_ERR_END
+
+	;This case should never happen because READ_WRITE is supposed to
+	;never return .IDEVN for an existing device (if the device is offilne
+	;it should return .NRDY instead); however in Nextor 2 both cases
+	;were indistinguishable, so drivers not properly ported from Nextor 2
+	;will return .IDEVN instead of .NRDY. This is only relevant for DOS 1 mode
+	;(in DOS 2 mode the media check layer masks this driver defect,
+	;see mc_devcmd_err in val.mac)
+	cp	.IDEVN##
+	jr	z,CONV_ERR_END
+
+	ld	b,4
+	cp	.DATA##
+	jr	z,CONV_ERR_END
+	ld	b,6
+	cp	.SEEK##
+	jr	z,CONV_ERR_END
+	ld	b,8
+	cp	.RNF##
+	jr	z,CONV_ERR_END
+	ld	b,10
+	cp	.WRERR##
+	jr	z,CONV_ERR_END
+	ld	b,12
+
+CONV_ERR_END:
+	ld	a,b
+	pop	bc
+	scf
+	ret
+
+COMP16:
+	ld	a,h
+	sub	d
+	ret	nz
+	ld	a,l
+	sub	e
+	ret
+
+;-----------------------------------------------------------------------------
+;
+; Default DPB, it contains data for a 720K disk drive
+
+	ALIGN 7BAAh
+
+DEFDPB:
+	DB	0FFh
+
+	DB	0F9h
+	DW	512		
+	DB	15		
+	DB	4		
+	DB	1		
+	DB	2		
+	DW	1		
+	DB	2		
+	DB	112		
+	DW	14		
+	DW	714		
+	DB	3		
+	DW	7
+;
+
+    ;The kernel code shared by banks 0 and 3 that didn't fit elsewhere
+    ;goes from here up to DRIVER_EXTRA_AREA (see the end of this file).
+
+
+;-----------------------------------------------------------------------------
+;
+; GHOST_PROMPT
+;
+; Called when this drive is in a ghost pair but was NOT last accessed.
+; Updates the "last accessed" bits on both entries (current and partner),
+; then calls PROMPT.  TARGET is already set by dos1ker A6086.
+;
+; Input:  IY = current KERNEX_DOS1 entry
+; Preserves: BC, DE, HL, IY.  Trashes AF, IX.
+
+GHOST_PROMPT:
+	push	bc
+	push	de
+	push	hl
+
+	;Mark this drive as last accessed
+	set	7,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)
+
+	;Find partner: master (bit 0=1) → next entry,
+	;              ghost  (bit 1=1) → prev entry.
+	ld	bc,UD1_SIZE##
+	push	iy
+	pop	hl		;HL = current entry start
+	bit	0,(iy+UD1_FIRST_ABSOLUTE_SECTOR##)
+	jr	nz,_gp_next
+	;Ghost: partner is previous entry
+	or	a
+	sbc	hl,bc
+	jr	_gp_found
+_gp_next:
+	;Master: partner is next entry
+	add	hl,bc
+_gp_found:
+	;HL = partner entry start; offset to UD1_FIRST_ABSOLUTE_SECTOR
+	inc	hl
+	inc	hl
+	inc	hl		;HL -> partner's UD1_FIRST_ABSOLUTE_SECTOR[0]
+	res	7,(hl)		;Mark partner as not last accessed
+
+	;Call PROMPT in bank 0
+	push	iy
+	ld	ix,PROMPT##
+	ex	af,af'
+	xor	a		;Bank 0
+	call	CALBNK
+	pop	iy
+
+	pop	hl
+	pop	de
+	pop	bc
+	ret
+
+;-----------------------------------------------------------------------------
+;
+;	Print a message corresponding to the error code passed in A, left by the
+;   DOS environment initializer (typically NEXTOR.SYS) in ERR_TO_BASIC.
+;
+	public	PRINT_ERR_TO_BASIC
+PRINT_ERR_TO_BASIC:
+	push	af
+	ld	de,PETB_PREFIX		;Print prefix line first.
+	ld	c,_STROUT##
+	call	BDOS##
+	pop	af
+	ld	b,a			;B = error code for _EXPLAIN.
+	ld	de,KBUF			;Scratch. BUF would cause "Syntax error" (used for BASIC startup command).
+	ld	c,_EXPLAIN##
+	call	BDOS##			;DE preserved, buffer holds ASCIIZ text.
+	ld	h,d
+	ld	l,e			;HL = DE = buffer start.
+PETB_SCAN:
+	ld	a,(hl)
+	inc	hl
+	or	a
+	jr	nz,PETB_SCAN
+	dec	hl			;HL -> terminating null.
+	ld	(hl),'$'
+	ld	c,_STROUT##
+	call	BDOS##
+	ld	de,TWO_CRLF
+	ld	c,_STROUT##
+	call	BDOS##
+;
+	xor	a
+	ld	(ERR_TO_BASIC##),a	;Consume the marker.
+	ret
+;
+PETB_PREFIX:	db	13,10,"Error initializing DOS environment: ",13,10,"$"
+TWO_CRLF: db 13,10,13,10,"$"
+
+;-----------------------------------------------------------------------------
+;
+; KANJI_BOOT - Install the Kanji driver at boot time if the "6" boot key is active
+;
+; This does the same as the boot sector code that KMODE.COM writes to disks:
+; the BASIC statements "CALL KANJI:CALL ANK" are executed through the BASIC
+; interpreter, so that the Kanji driver gets installed (and its work area
+; allocated) but the screen is left in ANK mode; then the normal boot
+; sequence continues. The statements are followed by an ERROR statement,
+; and H.ERRO is hooked to KANJI_BOOT_ERROR, so that control comes back here
+; after the CALLs (or right away if CALL KANJI itself fails because there's
+; no Kanji driver, in which case the boot just continues silently).
+;
+; If the Kanji driver reserves memory by lowering HIMEM, the "real HIMEM"
+; that the kernel saved at initialization time (HIMSAV in DOS 2 mode; the
+; same address holds the "disk system bottom" in DOS 1 mode) is lowered by
+; the same amount, so that neither the DOS environment nor disk BASIC will
+; ever use the memory reserved by the driver.
+;
+; This routine is linked in both bank 0 and bank 3, so it can be called from
+; both the DOS 2 and the DOS 1 boot sequences. Since BASIC is entered with a
+; fresh stack, it must be called when the stack holds nothing that needs to
+; be preserved: if the key is active, control doesn't come back via RET but
+; via a jump to KANJI_BOOT_RESUME (defined by the caller's bank, it should be
+; placed right after the CALL) with SP=BOOTAD+512; if the key is not active,
+; the routine just returns.
+;
+; Input:  none
+; Output: none, all registers are corrupted
+
+H.ERRO	equ	0FFB1h		;BASIC error hook
+NEWSTT	equ	4601h		;BASIC "execute next statement" entry
+STKTOP	equ	0F674h		;BASIC stack top
+TOTEXT	equ	00D2h		;BIOS: force text mode
+ERAFNK	equ	00CCh		;BIOS: erase the function keys display
+BOOTAD	equ	0C000h		;Where the boot sector is loaded and executed
+
+KB_TOK_CALL	equ	0CAh	;BASIC token of CALL
+KB_TOK_ERROR	equ	0A6h	;BASIC token of ERROR
+
+;Scratch RAM: the boot sector area is free at this point (the boot sector,
+;if any, is read after this routine has finished, and the stack at
+;BOOTAD+512 is reset when BASIC is entered anyway).
+KB_TEXT_RAM	equ	BOOTAD		;Copy of the statements (KB_TEXT_END-KB_TEXT bytes)
+KB_SAVED_HOOK	equ	BOOTAD+32	;Previous contents of H.ERRO (5 bytes)
+KB_SAVED_HIMEM	equ	BOOTAD+37	;HIMEM before executing the statements (2 bytes)
+
+	public	KANJI_BOOT
+KANJI_BOOT:
+	ld	a,(BOOTKEYS##)
+	and	01000000b		;"6" key
+	ret	z
+
+	ld	hl,(HIMEM##)		;Remember HIMEM so that KANJI_BOOT_ERROR
+	ld	(KB_SAVED_HIMEM),hl	; can detect if the Kanji driver lowers it
+
+	ld	hl,H.ERRO		;Save the current contents of H.ERRO
+	ld	de,KB_SAVED_HOOK
+	ld	bc,5
+	ldir
+
+	ld	hl,H.ERRO		;Hook H.ERRO to KANJI_BOOT_ERROR
+	ld	(hl),0F7h		; via "RST 30h" (far call to our slot).
+	inc	hl			; The bank doesn't change while BASIC runs,
+	ld	a,(MASTER_SLOT##)	; so KANJI_BOOT_ERROR will run in the same
+	ld	(hl),a			; bank as the caller of KANJI_BOOT.
+	inc	hl
+	ld	(hl),low KANJI_BOOT_ERROR
+	inc	hl
+	ld	(hl),high KANJI_BOOT_ERROR
+	inc	hl
+	ld	(hl),0C9h
+
+	ld	hl,KB_TEXT		;The statements must be in RAM, since the
+	ld	de,KB_TEXT_RAM		; BASIC interpreter needs page 1 for itself
+	ld	bc,KB_TEXT_END-KB_TEXT
+	ldir
+
+	ld	sp,(STKTOP)		;Execute the statements. BASIC never returns
+	ld	hl,KB_TEXT_RAM		; from here: the ERROR statement (or an error
+	ld	ix,NEWSTT		; in CALL KANJI) triggers H.ERRO, which brings
+	jp	CALBAS			; us to KANJI_BOOT_ERROR.
+
+KB_TEXT:	db	":",KB_TOK_CALL,"KANJI:",KB_TOK_CALL,"ANK:",KB_TOK_ERROR,0
+KB_TEXT_END:
+
+KANJI_BOOT_ERROR:
+	ld	hl,KB_SAVED_HOOK	;Restore the previous contents of H.ERRO
+	ld	de,H.ERRO
+	ld	bc,5
+	ldir
+
+	call	TOTEXT			;Same as CALL SYSTEM does before rebooting
+	call	ERAFNK			; (page 0 is the BIOS ROM here, we come from BASIC)
+
+	ld	hl,(KB_SAVED_HIMEM)	;HL = HIMEM before - HIMEM now
+	ld	de,(HIMEM##)		;   = memory reserved by the Kanji driver
+	or	a
+	sbc	hl,de
+	jr	z,KB_RESUME		;Nothing reserved
+	jr	c,KB_RESUME		;HIMEM increased?! Shouldn't happen, ignore
+	ex	de,hl
+	ld	hl,(HIMSAV##)		;Lower the "real HIMEM" by the same amount,
+	or	a			; so that the reserved memory is never
+	sbc	hl,de			; reused by the DOS environment
+	ld	(HIMSAV##),hl		; or by disk BASIC
+
+KB_RESUME:
+	ld	sp,BOOTAD+512		;Same stack as the caller had
+	jp	KANJI_BOOT_RESUME##
+
+;-----------------------------------------------------------------------------
+;
+; Free area for the driver at the end of banks 0 and 3
+;
+; The 256 bytes from DRIVER_EXTRA_AREA up to CHGBNK (7FD0h)
+; are reserved for the code or data that the driver may supply via the
+; /e: option of mknexrom (see "The free space at kernel main bank" in the
+; Driver Development Guide), so no kernel code may be placed there. The ALIGN
+; pads with zeros up to the start of the area, and (more importantly) makes
+; the assembly fail with a "Code overwraps" error if the kernel code above
+; ever grows past it.
+
+    ALIGN DRIVER_EXTRA_AREA
+
+	finish	<DRV>
+;
+	end
+;

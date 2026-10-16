@@ -1,0 +1,21 @@
+	name('ver')
+	TITLE	MSX-DOS 2 - MSX-DOS.SYS copyright (1986) IS Systems Ltd.
+	SUBTTL	Version number
+;
+;
+;
+;        This file simply defines to labels which together  form  the  version
+; number  of MSX-DOS.SYS. VERSION is the main version number, and the high and
+; low bytes of RELEASE are the 'release' (fractional) part.
+;
+; See also version_string.mac
+;
+VERSION	EQU	3
+RELEASE	EQU	0*256+0			; Version 3.0
+CRYEAR	EQU	2026
+;
+GLOBAL	VERSION, RELEASE, CRYEAR
+;
+;
+;
+	END

@@ -1,0 +1,7 @@
+	.z80
+BANK	equ	3
+;
+	include	../bank.inc
+	include	../bank0/b0lab_b3.inc
+;
+	end
