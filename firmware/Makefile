@@ -107,10 +107,10 @@ LDFLAGS  := $(ARCH_FLAGS) -Os -flto -T "$(LINKER)" -nostartfiles \
 # ---- Build rules -------------------------------------------------------------
 .PHONY: all flash publish size clean nextor
 
-# Nextor ROM (driver + kernel) built from ../msx2/NextorDriver and copied to
+# Nextor ROM (driver + kernel) built from ../NextorDriver and copied to
 # build/CART.NXT. Copy it to the USB stick; the terminal programs it as the
 # NEXTOR mapper. Needs N80 (dotnet); skipped with a warning if the build fails.
-NEXTOR_DIR := $(abspath ../msx2/NextorDriver)
+NEXTOR_DIR := $(abspath ../NextorDriver)
 NEXTOR_NXT := $(BUILD)/CART.NXT
 
 all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin nextor
@@ -173,15 +173,26 @@ flash: $(BUILD)/$(TARGET).bin
 	@$(OPENOCD) -f $(OPENOCD_CFG) \
 	    -c "program $(abspath $<) $(FLASH_ADDR) verify reset exit"
 
-# Clean release build; copies the .bin to the repo root as RISKYMSXCART_v<version>.bin
+# Clean release build; copies the .bin and the Nextor CART.NXT to the
+# repo root. The firmware binary is versioned (RISKYMSXCART_v<ver>.bin);
+# the Nextor cart is dropped as CART.NXT - it is the file the user copies
+# to the USB stick and programs via the terminal, so keeping the name
+# stable avoids a rename every release.
 VERSION := $(shell sed -n 's/.*FIRMWARE_VERSION_STRING "\(.*\)".*/\1/p' User/version.h)
 RELEASE_BIN := $(abspath $(CURDIR)/..)/$(TARGET)_$(VERSION).bin
+RELEASE_NXT := $(abspath $(CURDIR)/..)/CART.NXT
 
 publish:
 	@test -n "$(VERSION)" || { echo "Cannot read version from User/version.h"; exit 1; }
 	@$(MAKE) --no-print-directory clean
-	@$(MAKE) --no-print-directory $(BUILD)/$(TARGET).bin
+	@$(MAKE) --no-print-directory $(BUILD)/$(TARGET).bin nextor
 	@cp $(BUILD)/$(TARGET).bin $(RELEASE_BIN)
+	@if [ -f "$(NEXTOR_NXT)" ]; then \
+	    cp "$(NEXTOR_NXT)" "$(RELEASE_NXT)" && \
+	    echo ">>> Published $(RELEASE_NXT)"; \
+	else \
+	    echo "WARNING: $(NEXTOR_NXT) not built, skipping Nextor publish"; \
+	fi
 	@echo ">>> Published $(RELEASE_BIN)"
 
 # ---- Utilities ---------------------------------------------------------------
