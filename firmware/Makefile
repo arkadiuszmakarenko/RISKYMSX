@@ -3,9 +3,8 @@
 # Replaces the MounRiver Studio IDE build with a plain make-based workflow.
 # Targets:
 #   make            - build ELF/HEX/BIN
-#   make flash      - build and program the chip via minichlink (WCH-Link)
+#   make flash      - build and program the chip via OpenOCD (WCH-Link)
 #   make publish       - clean release build -> ../RISKYMSXCART_<version>.bin
-#   make flash-openocd - build and program via OpenOCD using wch-riscv.cfg
 #   make size       - show program/data size
 #   make clean      - remove build artifacts
 #
@@ -106,7 +105,7 @@ LDFLAGS  := $(ARCH_FLAGS) -Os -flto -T "$(LINKER)" -nostartfiles \
             --specs=nano.specs --specs=nosys.specs
 
 # ---- Build rules -------------------------------------------------------------
-.PHONY: all flash flash-openocd publish size clean nextor
+.PHONY: all flash publish size clean nextor
 
 # Nextor ROM (driver + kernel) built from ../msx2/NextorDriver and copied to
 # build/CART.NXT. Copy it to the USB stick; the terminal programs it as the
@@ -117,10 +116,15 @@ NEXTOR_NXT := $(BUILD)/CART.NXT
 all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin nextor
 
 nextor: | $(BUILD)
-	@$(MAKE) --no-print-directory -C "$(NEXTOR_DIR)" && \
-	    cp "$(NEXTOR_DIR)/Nextor-3.0.RISKYMSX2.ROM" "$(NEXTOR_NXT)" && \
-	    echo "  NXT     $(NEXTOR_NXT)" || \
-	    echo "  WARNING: Nextor ROM build failed, $(NEXTOR_NXT) not updated"
+	@if [ -f "$(NEXTOR_DIR)/Makefile" ]; then \
+	    { $(MAKE) --no-print-directory -C "$(NEXTOR_DIR)" && \
+	      cp "$(NEXTOR_DIR)/Nextor-3.0.RISKYMSX2.ROM" "$(NEXTOR_NXT)" && \
+	      echo "  NXT     $(NEXTOR_NXT)"; } || \
+	    echo "  WARNING: Nextor ROM build failed, $(NEXTOR_NXT) not updated"; \
+	else \
+	    echo "  SKIP    NextorDriver not found, $(NEXTOR_NXT) not updated"; \
+	fi
+
 
 $(BUILD)/$(TARGET).elf: $(OBJS) | $(BUILD)
 	@echo "  LD      $@"
@@ -154,7 +158,6 @@ $(OBJ_DIRS):
 	@mkdir -p $@
 
 # ---- Flash targets -----------------------------------------------------------
-MINICHLINK ?= minichlink
 # The stock OpenOCD has no WCH-Link driver; use the WCH fork bundled with MounRiver.
 MRS_OCD_DIR := $(abspath $(CURDIR)/../MRS_Toolchain_Linux_x64_V210/OpenOCD/OpenOCD/bin)
 ifneq ($(wildcard $(MRS_OCD_DIR)/openocd),)
@@ -166,10 +169,6 @@ else
 endif
 
 flash: $(BUILD)/$(TARGET).bin
-	@echo ">>> Flashing $(BUILD)/$(TARGET).bin to $(FLASH_ADDR) via minichlink"
-	@$(MINICHLINK) -w $< $(FLASH_ADDR)
-
-flash-openocd: $(BUILD)/$(TARGET).bin
 	@echo ">>> Flashing $(BUILD)/$(TARGET).bin via OpenOCD (WCH-Link)"
 	@$(OPENOCD) -f $(OPENOCD_CFG) \
 	    -c "program $(abspath $<) $(FLASH_ADDR) verify reset exit"
