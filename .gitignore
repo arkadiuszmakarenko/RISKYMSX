@@ -25,6 +25,12 @@ fp-info-cache
 *.ses
 
 gerbers/
+# Keep versioned Gerber zips tracked as release artifacts.
+# The directory must be un-ignored first: Git cannot re-include a file whose
+# parent directory is excluded.
+!board/gerbers/
+board/gerbers/*
+!board/gerbers/*.zip
 cad/
 \#*.dxf
 *.lck
