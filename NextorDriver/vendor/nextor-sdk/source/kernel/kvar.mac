@@ -1,0 +1,825 @@
+	.z80
+	name('kvar')
+	title	MSX-DOS 2 KERNEL   Copyright (1986)  IS Systems Ltd.
+	subttl	Variable and Constants Declarations
+	.sall
+;
+;------------------------------------------------------------------------------
+;
+;    This file declares assorted  variables  and  constants  for  the  MSX-DOS
+; Kernel.   It  generates  no  code but simply declares an awful lot of public
+; symbols.  It declares all the variables which are  stored  in  the  kernel's
+; private workspace RAM page, and many of these are declared both as addresses
+; within page-2, and also as offsets from "RAM_BASE" which is normally  loaded
+; into  IY.   In  this case the offsets from IY have an "@" symbol as a prefix
+; and checking is done that they are withing -128...+127 of IY.  The variables
+; are all declared backwards from the end of the page-2 RAM segment.
+;
+	INCLUDE	macros.inc
+	INCLUDE	const.inc
+	RAMMOD
+;
+;
+
+	; This is the legacy MSX-DOS version number, fixed to 2.31;
+	; the Nextor version number is in version.inc
+	const	MAIN_DOS_VERSION,2	;Major version number
+	const	SEC_DOS_VERSION_HIGH,3	;Minor version number, high nybble
+	const	SEC_DOS_VERSION_LOW,1	;Minor version number, low nybble
+;
+;
+	const	MIN_SECTOR_BUFFERS,2       ;Minimum number of sector buffers
+	const	DEFAULT_SECTOR_BUFFERS,5   ;Default number of sector buffers
+	const	MAX_FILE_HANDLES,63        ;Number of file handles per process
+;
+	const	UD_MEDIA_CHECK_TIMEOUT,5+2	;Timeout for media check calls (100ms units)
+                                        ; (+2 is because UD_TIME is only decremented
+                                        ;  down to 2, not to zero).
+	const	SCREEN_BUFFER_TIMEOUT,1+1	;Timeout for screen buffer (100ms units)
+                                        ; (+1 is because CH_COUNT is only decremented
+                                        ;  down to 1, not to zero).
+	const	CONSOLE_STATUS_CHECK_TIMEOUT,100+1  ;Timeout counter for console status checks
+;
+;
+;*****************************************************************************
+;
+var	macro	name,size		;; Declare a variable of a specified
+	 ifnb	<size>			;;   size as an address in page-2.
+ram_p	  defl	 ram_p-(size)
+	 endif
+	 const	 name,ram_p
+	endm
+;
+;
+var0	macro	name			;; Declare a variable of zero bytes
+	 var	 name,0
+	endm
+;
+;
+var1	macro	name			;; Declare a variable of one byte
+	 var	 name,1
+	endm
+;
+;
+var2	macro	name			;; Declare a variable of two bytes
+	 var	 name,2
+	endm
+;
+;
+;
+iy_err	macro	name,L,M		;; Error message if variable is out of
+	 if	 L GT 32767		;;   range of RAM_BASE.
+	  error   <Variable name is out of range at offset -M>
+	 else
+	  error   <Variable name is out of range at offset L>
+	 endif
+	endm
+;
+;
+iy_var	macro	name,size		;; Declare a variable as an address
+	 local	 iy_off			;;   in page-2 and a RAM_BASE offset
+	 var	 name,size		;;   for IY addressing.  Range is
+iy_off	 equ	 name-RAM_BASE		;;   checked if IY_FLAG is true.
+	 if	 iy_flag AND (iy_off GT 127) AND (iy_off LT -128)
+	  iy_err  name,%iy_off,%(-iy_off)
+	 else
+	  const  @&name,iy_off
+	 endif
+	endm
+;
+;
+iy_var0	macro	name			;; Declare an IY variable of zero
+	 iy_var  name,0			;;   bytes.
+	endm
+;
+;
+iy_var1	macro	name			;; Declare an IY variable of one
+	 iy_var  name,1			;;   byte.
+	endm
+;
+;
+iy_var2	macro	name			;; Declare an IY variable of two
+	 iy_var  name,2			;;   bytes.
+	ENDM
+;
+;
+iy_min	macro	L,M			;; Print maximum addressable variable
+	 if	 L GT 32767		;;  offset from IY.
+	  warn	  <Minimum variable offset from IY is -M>
+	 else
+	  warn	  <Minimum variable offset from IY is L>
+	 endif
+	endm
+;
+;
+;
+ifield	macro	value			;; Initialise the offset value at
+dum_p	 defl	 (value)		;;   the start of a data structure.
+start_p  defl	 dum_p
+	endm
+;
+;
+field	macro	size,name		;; Declare a field of a specified size
+	 if	size GT 32767		;;   as an offset in the current data
+dum_p	  defl	dum_p+size		;;   structure.  No name is given to
+	 endif				;;   the field if the second parameter
+	 ifnb	 <name>			;;   is ommitted.
+	  const   name,dum_p
+	 endif
+	 if	size LE 32767
+dum_p	  defl	 dum_p+(size)
+	 endif
+	endm
+;
+;
+size	macro	name
+	 const	 name,(dum_p-start_p)
+	endm
+;
+;
+;*****************************************************************************
+;
+;        Unit Descriptor
+;       =================
+;
+	ifield	0		;Start at offset zero
+;
+	field	1,UD_SLOT	;Slot address of appropriate disk driver
+	field	1,UD_DEVICE_NUMBER   ;Device number (for Nextor drivers)
+	field	2,UD_DPB_ADDRESS     ;Address of MSX DPB in system RAM
+	field	1,UD_FLAGS	;Various flags for the unit:
+				;        bit 0: disk is FAT12
+				;        bit 1: disk is FAT16
+				;	     bit 2: disk supports undeleting
+				;        bit 3: reduced allocation information mode is enabled
+				;        bit 4: unit is locked
+				;	     bit 5: unit needs to be accessed in Z80 mode
+				;        bit 6: unit is mounted to a file
+	field	1,UD_DFLAGS	;More flags for the unit:
+				;        bit 0: unit is associated to a device in a Nextor driver
+				;               (if zero, all other bits are meaningless)
+                ;        bit 1: the device is a floppy disk drive
+                ;        bit 2: the drive is removable
+				;        bit 3: partition assignment is pending for this drive
+				;        bit 4: value at UD_FIRST_DEVICE_SECTOR is valid
+				;               (so that BUILD_UPB will not auto-assign partition)
+				;        bit 5: drive is a ghost drive
+				;        bit 6: drive was last accessed in ghost pair
+				;        bit 7: unit is the built-in kernel RAM disk
+;
+	field	1,UD_RAM_SEGMENT	;Segment number for RAM based drivers, FFh for ROM based drivers
+;
+	field	1,UD_PHYSICAL_UNIT	;Physical unit number.
+	field	1,UD_TIME	;Down counter decremented every interrupt
+				;  and set back to UD_MEDIA_CHECK_TIMEOUT whenever the unit
+				;  is accessed.
+				;  0 => No UPB defined (don't decrement)
+				;  1 => UPB must be verified (don't decrement)
+				;  2 => Timeout expired (don't decrement)
+	field	1,UD_CLUSTER_MASK       ;Cluster mask
+	field	1,UD_CLUSTER_SHIFT      ;Cluster shift
+	field	2,UD_RESERVED_SECTORS   ;Reserved sectors
+	field	1,UD_NUMBER_OF_FATS     ;Number of FAT's
+	field	1,UD_ODD_DIR_ENTRIES    ;Odd directory entries (0...0Fh)
+	field	1,UD_WHOLE_DIR_SECTORS  ;Whole directory sectors
+	field	1,UD_SECTORS_PER_FAT    ;Sectors per FAT
+	field	2,UD_FIRST_ROOT_DIR_SECTOR  ;First root directory sector
+	field	2,UD_FIRST_DATA_SECTOR  ;First data sector
+	field	2,UD_CLUSTER_COUNT      ;Total number of clusters
+;
+	field	1,UD_DIRTY_DISK_FLAG    ;Dirty disk flag
+	field	4,UD_VOLUME_ID          ;Current volume ID
+	field	1,UD_MEDIA_DESC_BYTE    ;Media descriptor byte
+
+	field	2,UD_CURRENT_DIR_FIRST_CLUSTER	;First cluster of current directory
+				;  -ve   => root directory
+				;  0000h => cluster not known
+	field	64,UD_CURRENT_DIR_PATH	;Current directory path
+	field	2,UD_REDUCED_CLUSTER_COUNT	;Reduced total number of clusters
+
+	field	4,UD_FIRST_DEVICE_SECTOR	;First device sector (only for block devices on Nextor drivers)
+
+	field	2,UD_CHKSUM
+    
+	field	1,UD_RELATIVE_UNIT_NUMBER   ;Relative unit number for unit handler
+                                        ;(non-Nextor drivers only)
+	field   2,UD_ALLOCATION_CLUSTER	;Next cluster to check for allocation -1
+
+;
+	;--- Extra fields used when mounting files
+	;    This extra space should NOT be allocated unless a file is mounted to the drive
+
+    field 1,UD_MOUNT_FLAGS          ;Flags. Bit 0: read-only mount
+    field 1,UD_MOUNT_DRIVE          ;Drive where the mounted file is
+	field 2,UD_MOUNT_MAX_SECTOR     ;Maximum sector number
+	field 2,UD_MOUNT_START_CLUSTER  ;Start cluster (used to check if file is already mounted)
+	field 3,UD_MOUNT_FIRST_DRIVE_SECTOR	;Start sector relative to the drive where the mounted file is
+	field 13,UD_MOUNT_FILENAME      ;File name
+
+	size	UD_SIZE_WITH_MOUNT		;Total size of unit descriptor including extra fields
+
+	const	UD_SIZE,UD_SIZE_WITH_MOUNT-22	;Total size of unit descriptor without extra fields
+
+
+;*****************************************************************************
+
+; Entry in the Nextor drives table (pointed by KERNEX_DOS1) in MSX-DOS 1 mode
+;
+; The table consists of one byte with the number of entries, followed by
+; the entries themselves.
+;
+; WARNING: UD1_SLOT needs to be at the same position as UD_SLOT
+
+	ifield	0		;Start at offset zero
+;
+	field	1,UD1_SLOT            ;Slot address of appropriate disk driver
+	field	1,UD1_RELATIVE_DRIVE  ;Relative unit number (bits 0-4)
+                                  ;bit 6: set if FDD (floppy disk drive)
+                                  ;bit 7: set if partition has changed
+	field   1,UD1_DEVICE_NUMBER   ;Device number
+	;field   1                    ;LUN number was here in Nextor 2
+	field   4,UD1_FIRST_ABSOLUTE_SECTOR  ;First absolute sector number
+                                  ;For FDD (bit 6 set), byte 0 is repurposed:
+                                  ;  bits 0-1: 00=no ghost, 01=master, 10=ghost
+                                  ;  bit 7: set if this was last accessed
+
+    size	UD1_SIZE              ;Total size of unit descriptor
+
+;-----------------------------------------------------------------------------
+;
+; Work area for the disk emulation mode (pointed by KERNEX_DOS1)
+;
+; Bit 7 of DSK_CURRENT_FILE_INDEX is kept set to indicate that we are in disk emulation mode
+; (if reset, it's the count of entries for the Nextor drives table 
+;  in normal DOS 1 mode, see UD1_*)
+;
+; Bit 6 of DSK_CURRENT_FILE_INDEX is set if we have a Russian keyboard
+;
+; Bit 7 of EMU_FILE_DEVICE_NUMBER is set after the current image file is changed
+; and reset again when disk change is checked.
+;
+; WARNING: DSK_CURRENT_FILE_DEVICE_NUMBER and DSK_CURRENT_FILE_FIRST_SECTOR must have the same offset
+; as the DI_* equivalents; this is required by DIO_ENTRY in drv.mac.
+
+	ifield	0		;Start at offset zero
+
+	field	1,DSK_CURRENT_FILE_INDEX         ;Index of current disk image file
+	field   1,EMU_FILE_DEVICE_NUMBER         ;Device of emulation data mode
+	field   1,DSK_CURRENT_FILE_DEVICE_NUMBER ;Device number of current disk image file
+    ;field  1                                ;LUN number of current disk image file was here in Nextor 2
+	field   4,DSK_CURRENT_FILE_FIRST_SECTOR	 ;First sector of current disk image file
+    field   2,DSK_CURRENT_FILE_SECTORS_COUNT ;Size of current disk image file in sectors
+    field   1,DSK_EMULATED_FILES_COUNT       ;Number of emulated disk images
+    field   4,EMU_FILE_FIRST_SECTOR          ;Sector number of the emulation data file
+
+    size    EMU_DESC_SIZE		;Total size of descriptor
+
+;-----------------------------------------------------------------------------
+
+    ;Temporary work area used at boot time
+
+    const BOOT_TMP,0F980h
+
+    ifield BOOT_TMP
+
+    field  EMU_DESC_SIZE,EMU_TMP   ;Temporary location of work area used when setting up disk emulation mode
+    field  1,IN_EMU_MODE           ;Set to 1 when disk emulation mode has been entered
+    field  2,EMU_WORK_AREA_ADDRESS ;Address of work area as read from the emulation data file
+    field  1,EMU_FLAGS             ;Disk emulation flags (EF_* in const.inc). The routines that
+                                   ;find the emulation data file pointer store the flags byte of
+                                   ;the pointer here, then GO_EMU replaces it with the effective
+                                   ;value (pointer flags if any, else the data file header flags)
+
+    ;The KERNEX_DOS1 table (1 + max 8 entries of UD1_SIZE bytes each = up to 57 bytes)
+    ;is also written at BOOT_TMP, overlapping with the fields above plus 39 more bytes.
+    ;BOOTKEYS and I_AM_RUSSIAN must be placed past the maximum table extent.
+    field  39                      ;Padding to avoid KERNEX_DOS1 table overlap
+
+    ;NOTE! BOOTKEYS is used in dos1ker.mac with a hardcoded address,
+    ;it must be manually updated there if it changes.
+    field  5,BOOTKEYS              ;To store the state of boot keys
+    field  1,I_AM_RUSSIAN
+    field  1,ALL_KERNELS_DISABLED
+    field  6,KABJ_CODE              ;RAM hook: call CHGBNK_KEEP_AF + jp KABR
+    field  6,KDERJ_CODE             ;RAM hook: call CHGBNK_KEEP_AF + jp KDERR
+
+    ;Runtime scratch for EXB_RAM_DRV (mapinit.mac): the 8 bytes of EXTBIO
+    ;parameters (AF/BC/DE/HL) saved/restored across the inter-segment calls to
+    ;the RAM-loaded drivers. It deliberately overlays MAP_REC to avoid claiming
+    ;more page 3 RAM: MAP_REC is only used at boot (MAP_SCAN/MAP_INIT, before any
+    ;driver is loaded) and EXB_RAM_SAVE only afterwards (once a RAM driver is
+    ;installed), so the two never coexist.
+    field  0,EXB_RAM_SAVE
+
+    ;Mapper scan scratch. Populated by the early MAP_SCAN call in MEM_CHK
+    ;and re-read (instead of re-scanning) by MAP_INIT. Lives here, in the
+    ;BOOT_TMP region, because the previous location (KBUF, F41Fh) is part
+    ;of the MSX BIOS work area and gets corrupted by INITXT / CHPUT calls
+    ;that now run between the two scans on Turbo-R. The end-of-records
+    ;pointer is what MAP_SCAN would have returned in HL.
+    field  2*16+1,MAP_REC
+    field  2,MAP_REC_END_PTR
+;
+;-----------------------------------------------------------------------------
+;
+;        Device Descriptor
+;       ===================
+;
+	ifield	-2		;Allow two bytes for the device chain link
+;
+	field	2,DD_NEXT_DESC_ADDRESS      ;Pointer to next device descriptor
+	field	2,DD_DEVICE_HANDLER_ADDRESS ;Pointer to device handler
+	field	6		;Reserved for unit handler compatability
+;
+	field	1,DD_MODE  ;Device flags. copied to FAB_MODE when a
+                       ; file is opened.
+                       ;    b7 - always set (=> device)
+                       ;b6..b1 - reserved
+                       ;    b0 - set => CONSOLE device
+	field	32,DD_DEVICE_NAME   ;Device name as a directory entry
+;
+;
+	size	DD_DESC_SIZE		;Total size of device descriptor
+;
+;
+;-----------------------------------------------------------------------------
+;
+;        Buffer Descriptor
+;       ===================
+;
+	ifield	0		;Start at offset zero.
+;
+	field	2,BD_NEXT_DESC_ADDRESS	;16 bit pointer to next buffer descriptor
+	field	1,BD_PHYSICAL_UNIT_NUMBER   ;Physical unit number of contents
+                                        ;  00h => buffer empty
+                                        ;  80h => buffer reserved
+;
+	field	1,BD_FLAGS  ;Flags, only valid if BD_PHYSICAL_UNIT_NUMBER<>0.
+                ;     b0 - Flag for marking buffers
+                ;     b1 - Ignore allowed flag
+                ;b2...b5 - always 0
+                ;     b6 - Set => only write to last FAT copy
+                ;     b7 - set => dirty buffer
+
+	field	2,BD_SECTOR_NUMBER    ;Absolute sector number of contents (bit0-15)
+	field	1,BD_NUMBER_OF_COPIES ;Number of disk copies
+	field	1,BD_SECTORS_BETWEEN_COPIES	;Number of sectors between copies
+	field	1,BD_EX_SECTOR_NUMBER ;Absolute sector number of contents (bit16-22) : compatible "DSKEX" in FAT16PATCH
+	field	2,BD_UNIT_DESCRIPTOR_ADDRESS  ;Address of owning unit descriptor
+;
+	field	512,BD_DATA	;Space for one sectors worth of data
+;
+;
+	size	BD_DESC_SIZE		;Size of buffer descriptor
+;
+;
+;-----------------------------------------------------------------------------
+;
+;        FILEINFO Block
+;       ================
+;
+;    The first section of the fileinfo block (up to and including FIB_DRIVE_NUMBER) is
+; defined and may be accessed by users.  The remaining fields are not defined
+; and should not be accessed let alone modified by users.
+;
+;
+	ifield	0		;Start at offset zero
+;
+	field	1,FIB_ID_BYTE       ;Always 0FFh - differentiates ASCIIZ string
+	field	13,FIB_FILENAME     ;ASCIIZ filename string
+	field	1,FIB_ATTRIBUTES    ;Attributes byte
+	field	2,FIB_MODIFIED_TIME ;Last modified time
+	field	2,FIB_MODIFIED_DATE ;Last modified date
+	field	2,FIB_START_CLUSTER ;Start cluster number
+	field	4,FIB_FILE_SIZE     ;File size
+	field	1,FIB_DRIVE_NUMBER  ;Logical drive number (never zero)
+;
+	field	4,FIB_VOLUME_ID	;Volume id. (or device descriptor & jump
+                            ;            table address)
+	field	1,FIB_MODE      ;Device flag (bit-7)
+	field	1,FIB_SEARCH_ATTRIBUTES	;Search attributes
+	field	11,FIB_EXPANDED_SEARCH_PATTERN	;Expanded pattern matching filename
+	field	13,FIB_DIRECTORY_VARIABLES	;Storage for directory variables (size = DE_FSTV-DE_LSTV = 13) : compatible "SDIR_1", "SDIR_2", "SDIR_3" in FAT16PATCH
+;
+	field	8		;Spare
+;
+;
+	size	FIB_DESC_SIZE		;Size of fileinfo block (should be 64 bytes)
+;
+;
+;       -----------------------------------
+;
+;        FILE ACCESS BLOCK
+;       ===================
+;
+;    A file access block is the internal format used to read and write data
+; to disks.  It bears some similarity to fileinfo blocks in that many of the
+; fields are common.  However user's never access these at all.
+;
+	ifield	-3		;Start at offset -3 to allow for link
+				; and reference count.
+;
+	field	2,FAB_NEXT_ADDRESS	;Link into chain
+	field	1,FAB_REFERENCE_COUNT	;Reference count
+;
+	field	1,FAB_ID_BYTE	;Always 0FFh - differentiates ASCIIZ string
+	field	13,FAB_FILENAME	;ASCIIZ filename string
+	field	1,FAB_ATTRIBUTES	;Attributes byte
+	field	2,FAB_MODIFIED_TIME	;Last modified time
+	field	2,FAB_MODIFIED_DATE	;Last modified date
+	field	2,FAB_START_CLUSTER	;Start cluster number
+	field	4,FAB_FILE_SIZE	;File size
+	field	1,FAB_DRIVE_NUMBER	;Logical drive number (never zero)
+;
+	field	4,FAB_VOLUME_ID	;Volume id. (or device descriptor address)
+	field	1,FAB_MODE	;File handle mode flags:
+				;     b7 - set => device
+				;         clear=> disk file
+				;     b6 - set => EOF on input
+				;FOR DISK FILE ONLY (b7 clear)
+				; b5..b0 - logical drive number (1=A:)
+				;FOR DEVICE ONLY (b7 set)
+				;     b5 - set => binary mode (no ctrl-Z)
+				;         clear=> ASCII mode (ctrl-Z checks)
+				;     b4 - set => the FAB corresponds to a mounted file
+				; b3..b1 - reserved
+				;     b0 - set => CONSOLE device
+	field	1,FAB_SEARCH_ATTRIBUTES	;Search attributes
+;
+	field	0,FAB_END_OF_FIB	;End of FIB compatability
+;
+;   +++++  UP TO HERE IS COMPATIBLE WITH FILEINFO BLOCKS  +++++
+;
+	field	2,FAB_UNIT_DESCRIPTOR_ADDRESS  ;Unit descriptor address  \  Only used for
+	field	2,FAB_DIRECTORY_SECTOR         ;Directory sector          > comparing in
+	field	1,FAB_EX_DIRECTORY_SECTOR      ;Directory sector (bit16-22)
+	field	1,FAB_ENTRIES_PER_SECTOR       ;Entries number in sector / "FAB_SCAN".
+;
+	field	2,FAB_FIRST_DIR_CLUSTER        ;First directory cluster (-ve => root)
+	field	2,FAB_FIRST_PHYSICAL_CLUSTER   ;First physical cluster
+	field	2,FAB_LAST_ACCESSED_PHYSICAL_CLUSTER  ;Last accessed physical cluster
+	field	2,FAB_LAST_ACCESSED_LOGICAL_CLUSTER   ;Last accessed logical cluster
+	field	4,FAB_FILE_POINTER	;File pointer
+	field	1,FAB_ACCESS_MODE	;Access mode flags:
+                                ;     b0 - set => deny write
+                                ;     b1 - set => deny read
+                                ;     b2 - set => inherited by child
+                                ; b3..b6 - reserved
+                                ;     b7 - set => written to
+	field	1,FAB_TEMP_PAGING_MODE  ;Temporary paging mode
+;
+	size	FAB_DESC_SIZE		;Size of file access block
+;
+;
+;-----------------------------------------------------------------------------
+;
+;        CP/M FCB Format
+;       =================
+;
+	ifield	0
+;
+	field	1,FCB_DRIVE_NUMBER          ;Drive number 0=>default
+	field	8,FCB_FILENAME              ;Filename
+	field	3,FCB_FILENAME_EXTENSION    ;Filename extension
+;
+	field	1,FCB_EXTENT_LOW            ;Low byte of extent in sequential fns.
+	field	1,FCB_S1                    ;Byte S1 in CP/M
+	field	0,FCB_EXTENT_HIGH           ;\ High byte of extent in sequential fns.
+	field	1,FCB_RECORD_SIZE           ;/ Record size (2 bytes) in MSX-DOS block fns.
+	field	1,FCB_RECORD_COUNT          ;Record count in CP/M compatible fns.
+;
+	field	4,FCB_FILE_SIZE             ;File size (low byte first)
+	field	4,FCB_VOLUME_ID             ;Volume id
+	field	2,FCB_FIRST_DIR_CLUSTER     ;First directory cluster
+	field	2,FCB_FIRST_PHYSICAL_CLUSTER           ;First physical cluster
+	field	2,FCB_LAST_ACCESSED_PHYSICAL_CLUSTER   ;Last accessed physical cluster
+	field	2,FCB_LAST_ACCESSED_LOGICAL_CLUSTER    ;Last accessed logical cluster
+;
+	field	1,FCB_CURRENT_RECORD        ;Current record (sequential fns.)
+	field	4,FCB_RANDOM_RECORD         ;Random record (random and block fns.)
+;
+	size	FCB_DESC_SIZE
+;
+;
+;-----------------------------------------------------------------------------
+;
+;        Unit Parameter Block (in boot sector)
+;       =======================================
+;
+;	--- Common fields
+
+	ifield	0		; Start at offset zero
+;
+	field	3,UPB_JP                    ; 8086 compatible "JUMP" instruction
+	field	8,UPB_MANUFACTURER          ; Manufacturer's name & version number
+;
+	field	2,UPB_SECTOR_SIZE           ; Sector size (must be 512 currently)
+	field	1,UPB_SECTORS_PER_CLUSTER   ; Sectors per cluster (must be power of 2)
+	field	2,UPB_RESERVED_SECTORS      ; Reserved sectors including boot sector
+	field	1,UPB_NUM_FATS              ; Number of FATs
+	field	2,UPB_NUM_ROOT_DIR_ENTRIES  ; Number of root directory entries
+	field	2,UPB_TOTAL_SECTORS         ; Total number of sectors on disk if <=65535
+	field	1,UPB_MEDIA_DESC_BYTE       ; Media descriptor byte
+	field	2,UPB_SECTORS_PER_FAT       ; Sectors per FAT
+;
+	field	2,UPB_SECTORS_PER_TRACK     ; Sectors per track \  These are not used by
+	field	2,UPB_NUM_HEADS             ; Number of heads    > MSX-DOS but may be used
+	field	2,UPB_HIDDEN_SECTORS        ; Hidden sectors    /  by the unit handler.
+;
+;	--- Fields for DOS 2 boot sector
+
+	ifield 	1Eh
+
+	field	2,UPB_BOOT_CODE              ; Start of MSX-DOS boot code
+                                         ;  ('RET' or a jump to UPB_SPARE).
+	field	6,UPB_VOLUME_ID              ; "VOL_ID" string
+	field	1,UPB_DIRTY_FLAG             ; Dirty disk flag
+	field	4,UPB_RANDOM_ID              ; Random volume-id (each byte 0....7F)
+	field	5
+	field	0,UPB_SPARE                  ; Space for more MSX-DOS boot code
+
+;	--- Fields for standard boot sector
+
+	ifield	1Eh
+
+	field	2		; Continuation of "hidden sectors"
+	field	4,UPB_BIG_TOTAL_SECTORS      ; Total number of sectors on disk if >65535
+	field	1,UPB_PHYSICAL_DRIVE         ; Physical drive number
+	field	1,UPB_RESERVED               ; Reserved
+	field	1,UPB_EXTENDED_SIGNATURE     ; Extended signature block (28h or 29h)
+	field	4;,UPB_RANDOM_ID             ; Volume id, in the same place as DOS 2 boot sector
+	field	11,UPB_VOLUME_NAME           ; Volume name
+	field	8,UPB_FILESYSTEM             ; FAT Filesystem string :"FAT12" or "FAT16"
+;
+;
+;-----------------------------------------------------------------------------
+;
+;        Directory entry (32 bytes)
+;       ============================
+;
+	ifield	0
+;
+	field	8,DR_FILENAME        ; ASCII filename
+	field	3,DR_EXTENSION       ; ASCII filename extension
+	field	1,DR_ATTRIBUTES      ; File attributes
+	field	1,DR_DELETED_FIRST_CHAR	; First character of deleted entry.
+	field	9                    ; Unused space in directory entry
+	field	2,DR_UPDATED_TIME    ; Time of last update
+	field	2,DR_UPDATED_DATE    ; Date of last update
+	field	2,DR_FIRST_CLUSTER   ; First directory cluster
+	field	4,DR_FILE_SIZE       ; File size in bytes (low word first)
+;
+;
+;*****************************************************************************
+;
+;        These variables are accessed relative to IY and so are declared  both
+; as absolute addresses and as offsets from IY (with a leading "@" character).
+; The first ones of these are range checked to ensure  that  they  are  within
+; addressing  range  of  "RAM_BASE".  The variables start below the top of the
+; kernel data segment,  to allow space for the RAM disk's boot sector  at  the
+; top.   This is at the top so it will be outside the  allocation  scheme  for
+; this  RAM  segment and so it can (maybee) survive a reset,  although this is
+; not implemented yet.
+;
+;
+ram_p	defl	0C000h			;Top of RAM segment
+;
+	var0	RD_END
+
+	var	RD_LIST,0100h*2		;RAM disk segment/slot list
+	var1	RD_COUNT		;RAM disk segment count
+	var	RD_BOOT,UPB_SPARE	;RAM disk boot sector start
+	var	IY_SAVE,2
+	var	A_SAVE,1
+;
+;       ---------------------------------
+;
+	const	RAM_BASE,ram_p-128	;Base address for IY addressability
+iy_flag defl	true			;Enable IY range checking
+;
+	var0	VAR_TOP			;Segment gets zeroed up to here
+;
+;       ---------------------------------
+;
+	iy_var1	LAZY		;Skip various validation checks
+
+	iy_var1	PROC_ID		;Current process id.
+;
+	iy_var1	LAST_ERR	;Error code from last function
+;
+	iy_var2	RM_UD		;Address of unit descriptor for RAM disk
+;
+	iy_var1	B_COUNT		;Current number of sector buffers
+	iy_var2	B_CHAIN		;Buffer descriptor chain
+	iy_var2	B_CACHE		;Address of last used sector buffer
+;
+	iy_var2	DEV_CHAIN	;Chain of device descriptors
+	iy_var2	FAB_CHAIN	;Chain of file access blocks
+	iy_var2	HANDLES		;Address of file handle vector
+;
+	iy_var2	ENV_PTR		;Chain of environment items
+	iy_var1	EV_PG		;Environment routine paging mode
+;
+	iy_var1	IGNORE_FLAG	;Indicates if IGNORE response to a
+				;   DISK ERROR is recommended.
+	iy_var1	PHYS_UNIT	;Physical unit used in VALIDATE
+	iy_var1	DSK_RW		;Read/write flag for disk errors
+;
+	iy_var0	DE_LSTV
+	iy_var2	DE_START	;First cluster of directory. -ve => root dir
+	iy_var2	DE_CLUSTER	;Current directory cluster. -ve => root dir
+	iy_var2	DE_NEXT_CLU	;Next directory cluster. -ve => end of dir
+	iy_var2	DE_SECTOR	;Current directory sector
+	iy_var1	DE_EX_SECTOR	;Extended Current directory sector (bit16-22) : compatible "SDIR_1", "SDIR_2", "SDIR_3" in FAT16PATCH
+	iy_var1	DE_S_LEFT	;Number of sectors left in current cluster
+	iy_var1	DE_E_LEFT	;Number of entries left in current sector
+	iy_var1	DE_ENT		;Total number of entries in current sector
+	iy_var1	DE_ODD		;Number of entries in partial sector (0...0Fh)
+	iy_var0	DE_FSTV
+	iy_var	DE_SV,DE_LSTV-DE_FSTV	;Save area for directory variables
+	iy_var	DE_2SV,DE_LSTV-DE_FSTV	;Second save area (used by MOVE)
+;
+	iy_var1	CH1_BUF		;Buffer for single character file handle
+				; reads and writes.
+	iy_var1	RW_FLAGS	;Disk read/write control flags
+	iy_var2	RW_DTA		;Current disk transfer address
+	iy_var2	RW_SIZE		;Size of transfer left to do
+	iy_var2	RW_SZ_DONE	;Size of transfer done
+	iy_var2	RW_LCLU		;Logical cluster number
+	iy_var1	RW_LSEC		;Logical sector within cluster
+	iy_var2	RW_SOFF		;Start offset within sector
+	iy_var1	RW_MSEC		;Sectors per cluster
+	iy_var2	RW_PCLU		;Current physical cluster number
+	iy_var2	RW_PSEC		;Physical sector number
+	iy_var1	RW_EX_PSEC	;Extended Physical sector number (bit16-22) : compatible "BIT16" in FAT16PATCH
+	iy_var2	RW_OVER		;Overflow past EOF to suppres pre-reads.
+;
+	iy_var2	STR_2		;String termination address used by PARSE_PATH
+	iy_var1	SE_FLAGS	;Flags for controlling searches etc
+	iy_var2	FNM_PTR		;Filename pointer used in NAME_SEARCH
+	iy_var2	CHK_CLU		;Directoy cluster number to trap in PARSE_PATH
+	iy_var1	AL_FLAGS	;Non-zero => zero cluster in AL_CLUSTERS
+;
+	iy_var1	FAT_FLAGS	;Various flags.  Bits defined in "CONST.INC"
+	iy_var2	FAT_OSECT	;First sector number for overflowed FAT entry
+	iy_var2	FAT_HACK	;FAT entry if FF_OVR flag is set
+	iy_var2	FAT_CHAIN	;Head of cluster chain used in AL_CLUSTERS
+;
+	iy_var1	READ_COPIES	;Temporary variable used in BF_SECTOR
+;
+	iy_var1	DIO_EX_SECTOR	;Extended Physical sector number (bit16-22) : compatible "RW_16" in FAT16PATCH
+	iy_var1	ERR_EX_SECTOR	;Extended Physical sector number (bit16-22) for DISK_ERR rutine
+;
+	iy_var1	CH_FLAGS	;Character flags (see CONST.INC for bits)
+	iy_var1	PC_FLAGS	;Parse control flags (see CONST.INC for bits)
+	iy_var2	STR_PTR		;String pointer for Parsing
+	iy_var2	STR2_PTR	;Last item pointer for PARSE_PATH
+	iy_var2	WPTH_PTR	;Whole path string pointer
+	iy_var1	WP_ERR		;Non-zero => WPTH_BUF is invalid
+
+if MAX_UNITS GT 8
+	iy_var2	RALL_VECT	;Reduced allocation information mode vector
+else
+	iy_var1	RALL_VECT
+endif
+	iy_var	TURBO_VECT,4	;R800 mode support vector
+				;  Contains the slots of the legacy controllers that need to run in Z80 mode
+	iy_var	MB_DEF,8	;Default values for media byte of all drives
+
+;
+;
+;                 VARIABLES FOR CP/M FILE FUNCTIONS
+;               =====================================
+;
+	iy_var1	APPEND_FLAG	;Flag for APPEND in CP/M open function
+	iy_var2	FCB_ADR		;Address of CP/M FCB
+	iy_var1	SFN_EX		;Extent number for CP/M search functions
+	iy_var	BUF_REC,3	;Record number for CP/M seq. read buffer
+	iy_var1	BUF_COUNT	;Number of records in CP/M seq. read buffer
+	iy_var1	BUF_UNIT	;Logical unit number of buffer
+	iy_var2	BUF_FPC		;Start cluster of buffered file
+;
+;
+;                 VARIABLES FOR BDOS CHARACTER FUNCTIONS
+;               ==========================================
+;
+	iy_var1	CHAR_BUF	;Single character input buffer
+	iy_var2	CUR_COL		;Cursor column for output
+	iy_var1	PR_ECHO		;b0 set => printer echo enabled
+	iy_var1	IO_RDR		;b0 set => standard input is redirected
+				;b1 set => standard output is redirected
+;
+	iy_var2	PROM_COL	;Prompt column for buffered input
+	iy_var1	IN_COUNT	;Buffer count for buffered input
+	iy_var2	IN_START	;Pointer to start of input buffer
+;
+	iy_var2	CUR_LINE	;Current line for buffered input.
+	iy_var2	END_LINE
+	iy_var1	BUF_EM_FLAG	;Buffered input buffer empty flag.
+	iy_var2	MAX_CUR_POS	;Furthest cursor has been on line.
+	iy_var1	FLAG_FIRST
+	iy_var1	INS_FLAG	;Insert/overwrite mode flag.
+	iy_var1	CNL_ECHO	;Flag for redirection of output in line input
+;
+	iy_var2	LN_PTR		;Pointer into LN_BUF for ASCII mode input
+				; from CON device.
+;
+;
+;                 VARIABLES FOR BIOS CHARACTER FUNCTIONS
+;               ==========================================
+;
+	iy_var1	CH_PTR		;Index into BIOS screen buffer
+	iy_var1	CH_16FLG	;b0 set => last character in buffer is first
+				;          byte of a 16-bit char.
+	iy_var1	CBF_CTL		;non-zero => output buffering enabled [HF]
+;
+;
+;
+	iy_min	%(ram_p-RAM_BASE-1),%(1+RAM_BASE-ram_p)
+;
+iy_flag defl	FALSE			; Suppress +/- 128 byte checking
+;
+;
+;                 TABLES INITIALIZED AT BOOT UP TIME
+;               ======================================
+;
+	var	UC_TAB,256		;Character upper casing table
+;
+	var	MAP_TBL, 16*4		;Mapper slot table.
+;
+;
+;                 MISCELLANEOUS BUFFER AREAS
+;               ==============================
+;
+	var	UNIT_TAB,(MAX_UNITS+1)*2;Addresses of unit descriptor for
+					;  each physical unit. (1st entry is
+					;  never used.)
+	var	ASG_TAB,  MAX_UNITS+1	;Logical to physical unit translation
+					;  table (1st byte always 0).
+;
+	var	FIB_1,	  FIB_DESC_SIZE	;Internal fileinfo block
+	var	SRCH_FIB, FIB_DESC_SIZE	;FIB for CP/M search functions
+	var	TEMP_FCB, FCB_DESC_SIZE		;Temporary CP/M FCB for search fns.
+;
+	var	WPTH_BUF, 63+5		;Whole path buffer.  63 characters
+					; + 1 underflow byte + "\" at start
+					; + null + 2 overflow bytes at end
+;
+	var	FNAME_BUF,11		;Filename buffer for PARSE_ITEM
+	var	FNM2_BUF, 11		;Second filename buffer
+	var	CDIR_BUF, 11		;Filename buffer for current directory
+	var	SQN_BUF,  1+13+1	;Buffer for squashed ASCIIZ filenames
+					; space for "\" at start and one
+					; extra byte at end.
+	var	SQN2_BUF, 13		;Buffer for squashed ASCIIZ filenames
+					; in CP/M functions.
+	var	DEV_ENTRY,32		;Buffer for pretend directory
+					; entry for devices.
+;
+	var	UPB_BUF,  512		;Scratch sector buffer for "VAL"
+;
+;
+;   At the moment...
+;       Limit buffer size to fit into a single cluster (for most media).
+;       This will allow to read files with allocation error until they really
+;       face the trouble.  (should I name the application that always makes
+;       such a file?)  [HF]  16 --> 8
+;
+	const	SECT_BUFF,8		;CP/M sequential read buffer
+	var	CPM_BUFF, SECT_BUFF*128	; currently 1k (8 sectors).
+;
+;
+	const	LNB_SZ, 255		;Buffer for ASCII mode input from CON
+	var	LN_BUF, 2+LNB_SZ+3	; device.  2 bytes at start for length
+					; and 3 at end for CR-LF-NULL.
+;
+	var0	BUFF_END
+	var	CIRC_BUFF,256		;Circular buffer for buffered input.
+;
+;
+	const	CHB_SZ,   100		;BIOS screen output buffer.
+	var	CH_BUF,   CHB_SZ	;\  6 bytes for cursor on and off
+	var	ESEQ_BUF, 6		; > sequences must be immediately
+					;/  below the BIOS output buffer.
+
+    var     TMP_FAT,6
+;
+	var     GHO_PAIR,1		;Ghost pair info:
+	                        ;bits 0-4 = real drive (0=none, 1=A:, etc)
+	                        ;bit 5 = last accessed (0=real, 1=ghost)
+;
+	var2	RDRV_PTR		;Pointer to first cluster of RAM driver
+	                        ;registration list (0 = no RAM drivers)
+;
+	var2	RAM_PTR			;Pointer to start of RAM chain
+	var2	VAR_BOT			;End of RAM chain marker
+
+	.radix	16
+	pr_hex	<Bottom of fixed data area is address>,%VAR_BOT
+	.radix	10
+;
+;-----------------------------------------------------------------------------
+;
+	finish	<KVAR>
+	end
+;

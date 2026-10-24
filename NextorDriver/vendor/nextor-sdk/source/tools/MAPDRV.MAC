@@ -1,0 +1,497 @@
+	.z80
+
+FIB	equ	3000h
+
+	;Extended partition type codes
+PT_EXT: equ 5
+PT_EXT_LBA: equ 15
+
+	jp	START
+
+      ; -------------------------------------------------------------------------------
+	db	13
+	db	"MAPDRV v1.3 - map a drive to a driver, device and partition,",13,10
+	db      "         or mount a file on a drive"
+	db	13,10
+	db	"Usage:",13,10
+	db	13,10
+	db	"MAPDRV [/L] <drive>: <partition>|d|u|s [<device>] [<slot>[-<subslot>][:<seg>]]",13,10
+	db	"MAPDRV [/L] <drive>: <partition>|d|u|s [<device>] [0]",13,10
+	db  "MAPDRV <drive>: [/]<filename> [/ro]",13,10
+	db	13,10
+	db	"Maps the drive to the specified partition of the specified device",13,10
+	db	"of the driver in the specified slot (must be a Nextor driver).",13,10
+	db	13,10
+	db	"/L locks the drive immediately after doing the mapping.",13,10
+	db	13,10
+	db	"<partition> can be any number starting at 1, or 0 to map the drive directly",13,10
+	db	"to the device (needed for partitionless devices such as floppy disks).",13,10
+	db	"Partition numbers 2 to 4 refer to extended partitions 2-1 to 2-3 if partition",13,10
+	db	"2 of the device is extended, otherwise they refer to primary partitions.",13,10
+        db	13,10
+	db	"<device> must be a number from 1 to 255.",13,10
+	db	13,10
+	db	"<slot> and <subslot> must be a number from 0 to 3. If 0 is specified instead,",13,10
+	db	"the primary disk controller slot is assumed.",13,10
+	db  "<seg> (segment) must be a number from 0 to 255, only used for RAM drivers.",13,10
+	db	13,10
+	db	"If device information is provided but slot is omitted, the drive is mapped to",13,10
+	db	"the specified partition of the specified device in the driver already",13,10
+	db	"controlling the drive (this works only if the drive is currently mapped",13,10
+	db      "to a Nextor driver).",13,10
+	db	13,10
+	db	"If both device and slot information are omitted, the drive is mapped to the",13,10
+	db	"specified partition of the device it is already mapped to (this works only if",13,10
+	db	"the drive is currently mapped to a Nextor driver).",13,10
+	db	13,10
+	db	"'d' will revert the drive to its default mapping (the mapping at boot time).",13,10
+	db	"'u' will leave the drive unmapped. Other parameters are ignored in both cases.",13,10
+	db	"'s' will map the drive to the device but skip the partition assignment;",13,10
+	db	"    a suitable partition will be searched on each access to the drive",13,10
+	db	"    (useful for removable devices that are currently offline).",13,10
+	db	13,10
+	db	"If a valid filename is supplied after <drive>, the specified file will be",13,10
+	db  "mapped to the drive. A file cannot be mapped to its own drive, or to a drive",13,10
+	db  "that contains a file that has been mapped. Prepend the filename with '/'",13,10
+	db	"if the first character of its name is a digit.",13,10
+	db	1Ah
+
+USAGE_S:
+	db	"MAPDRV - map a drive to a driver, device and partition",13,10
+	db  "         or mount a file on a drive",13,10
+	db	13,10
+	db	"MAPDRV [/L] <drive>: <partition>|d|u|s [<device>] [<slot>[-<subslot>][:<seg>]]",13,10
+	db	"MAPDRV [/L] <drive>: <partition>|d|u|s [<device>] [0]",13,10
+	db  "MAPDRV <drive>: [/]<filename> [/ro]",13,10
+	db	13,10
+	db	"TYPE MAPDRV.COM for more details.",13,10
+	db	0
+
+START:
+	call	CHK_NEXTOR##
+
+	ld	de,BUF
+	ld	a,1
+	call	EXTPAR##
+	jr	nz,FOUND_PARAMS
+	
+	ld	de,USAGE_S
+	ld	c,_ZSTROUT##
+	call	5
+	ld	b,a
+	ld	c,_TERM##
+	jp	5
+FOUND_PARAMS:
+
+	;--- Get parameters
+
+	;* Check for /L
+
+	ld	iy,2
+
+	ld	a,(BUF)
+	cp	'/'
+	jr	nz,NO_LOCK
+	inc	hl
+	ld	a,(BUF+1)
+	or	32
+	cp	'l'
+	jr	nz,NO_LOCK
+
+	ld	a,-1
+	ld	(DO_LOCK),a
+
+	ld	de,buf
+	ld	a,2
+	call	EXTPAR##
+	ld	b,.NOPAR##
+	ld	c,_TERM##
+	jp	c,5
+
+	inc	iy
+NO_LOCK:
+
+	;* Drive letter
+
+	ld	hl,BUF
+	call	CHKLET##
+	dec	a
+	ld	(DRIVE),a
+
+	;* Partition number, or "d", "u", or file name
+
+	call	GET_NEXT_PARAM
+	ld	b,.NOPAR##
+	ld	c,_TERM##
+	jp	c,5
+
+	ld	a,(de)
+	cp	"/"
+	inc	de
+	jp	z,IS_FILE_DE
+
+	ld	hl,BUF	;Try to get first parameter as a number
+	call	EXT8##
+	jr	nc,IS_PART
+
+	ld	a,(BUF+1)
+	or	a
+	jp	nz,IS_FILE
+	ld	a,(BUF)		;Check fo special values "d", "u" and "s"
+	or	20h
+	cp	"d"
+	ld	b,1
+	jp	z,DO_MAP_DU
+	cp	"u"
+	ld	b,0
+	jp	z,DO_MAP_DU
+	cp	"s"
+	jr	z,IS_SKIP_PART
+	jp	IS_FILE
+
+	;* "s": skip the partition assignment,
+	;  then parse device and slot as for a partition number
+
+IS_SKIP_PART:
+	ld	a,-1
+	ld	(SKIP_PART),a
+	jr	IS_PART2
+
+IS_PART:
+	ld	(PARTITION),a
+IS_PART2:
+
+	;* Device
+
+	call	GET_NEXT_PARAM
+	jp	c,DO_MAP
+
+	ld hl,BUF
+	call EXT8##
+	jp c,IPARM_TERM
+	ld	(DEVICE),a
+
+	;* Slot, subslot, segment
+
+	call	GET_NEXT_PARAM
+	jp	c,DO_MAP
+
+	ld	hl,BUF
+	call	GETSLOT##
+	or	a
+	jr	nz,NO_MAIN
+	ld	a,(0F348h)
+NO_MAIN:
+	ld	(SLOT),a
+	ld	a,b
+	ld	(SEGMENT),a
+
+	jr	DO_MAP
+
+
+	;--- Do the mapping to default value, or unmap the drive
+	;    Input: B=0 to unmap, B=1 to map to default value
+
+DO_MAP_DU:
+	ld	a,(DRIVE)
+	ld	c,_MAPDRV##
+	call	5
+	ld	b,a
+	ld	c,_TERM##
+	jp	5
+
+
+	;--- Do the mapping to partition and device
+
+DO_MAP:
+
+	;* If no slot specified, get the current drive mapping
+
+	ld	a,(SLOT)
+	inc	a
+	jr	nz,OK_GETCURMAP
+
+	ld	a,(DRIVE)
+	ld	hl,BUF_LETTER
+	ld	c,_GDLI##
+	call	5
+	ld	b,a
+	ld	c,_TERM##
+	jp	nz,5
+
+	ld	a,(BUF_LETTER)
+	cp	1
+	ld	b,.IDRV##
+	ld	c,_TERM##
+	jp	nz,5		;Error if not assigned to a block device
+
+	ld	a,(DEVICE)
+	or	a
+	jr	nz,OK_DEVICE
+	ld	a,(BUF_LETTER+4)
+	ld	(DEVICE),a
+OK_DEVICE:
+
+	xor	a
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	e,(hl)
+	ld	hl,BUF_DRIVER
+	ld	c,_GDRVR##
+	call	5
+	ld	b,a
+	ld	c,_TERM##
+	jp	nz,5
+
+	ld	a,(BUF_DRIVER+4)
+	and	1
+	ld	b,.IDRVR##
+	ld	c,_TERM##
+	jp	z,5		;Error if not assigned to a Nextor driver
+
+	ld	a,(BUF_DRIVER)
+	ld	(SLOT),a
+	ld	a,(BUF_DRIVER+1)
+	ld	(SEGMENT),a
+OK_GETCURMAP:
+
+	;* If skipping the partition assignment ("s"), use mapping sector
+	;  FFFFFFFFh: the drive will be attached to the device with no
+	;  partition assigned, and a suitable partition will be searched
+	;  on the first access to the drive
+
+	ld	a,(SKIP_PART)
+	or	a
+	jr	z,NO_SKIP_PART
+	ld	hl,-1
+	ld	de,-1
+	jp	OK_PARTINFO
+
+NO_SKIP_PART:
+
+	;* Convert partition to primary or extended as appropriate
+
+	ld	a,(PARTITION)
+	or	a
+	jp	z,OK_ADJUST_PARTITION
+	cp	1
+	jr	z,IS_PRIM_PART
+	cp	5
+	jr	nc,IS_EXT_PART
+
+	ld	hl,0
+	ld	de,0
+	ld	ix,DRIVE
+	ld	a,(ix+3)	;Slot
+	ld	b,(ix+4)	;Segment
+	ld	d,(ix+5)	;Device
+	ld	h,2			;Primary partition
+	ld	l,0			;Extended partition
+	ld	c,_GPART##
+	call	5
+	ld	h,b
+	ld	b,a
+	ld	c,_TERM##
+	jp	nz,5
+
+	ld	a,h
+	cp	PT_EXT	;Is extended?
+	jr	z,IS_EXT_PART
+	cp	PT_EXT_LBA
+	jr	z,IS_EXT_PART
+
+IS_PRIM_PART:
+	ld	a,(PARTITION)
+	ld	(PRIMARY),a
+	xor	a
+	ld	(EXTENDED),a
+	jr	OK_ADJUST_PARTITION
+
+IS_EXT_PART:
+	ld	a,2
+	ld	(PRIMARY),a
+	ld	a,(PARTITION)
+	dec	a
+	ld	(EXTENDED),a
+
+OK_ADJUST_PARTITION::
+
+	;* Obtain the partition information
+
+	ld	hl,0
+	ld	de,0
+	ld	a,(PRIMARY)
+	or	a
+	jr	z,OK_PARTINFO
+	ld	ix,DRIVE
+	ld	a,(ix+3)	;Slot
+	ld	b,(ix+4)	;Segment
+	ld	d,(ix+5)	;Device
+	ld	h,(ix+1)	;Primary partition
+	ld	l,(ix+2)	;Extended partition
+	ld	c,_GPART##
+	call	5
+	ld	b,a
+	ld	c,_TERM##
+	jp	nz,5
+OK_PARTINFO:
+
+
+	;* Finally, do the actual mapping and lock if necessary
+
+	ld	(SLOT+4),de
+	ld	(SLOT+6),hl
+	ld	a,(DRIVE)
+	ld	b,2
+	ld	hl,SLOT	;Information is already in the right order for _MAPDRV
+	ld	c,_MAPDRV##
+	call	5
+	ld	b,a
+	or	a
+	jr	nz,DO_LOCK_OK
+
+	ld	a,(DO_LOCK)
+	or	a
+	jr	z,DO_LOCK_OK
+	ld	a,(DRIVE)
+	ld	e,a
+	ld	a,1
+	ld	b,0FFh
+	ld	c,_LOCK##
+	call	5
+	ld	b,a
+DO_LOCK_OK:
+
+	ld	c,_TERM##
+	jp	5
+
+	;--- Do the mapping to a file.
+	;    FIB is appropriately filled already.
+
+IS_FILE:
+	ld	de,BUF
+IS_FILE_DE:
+	ld	b,10110b	;Include directories, hidden and system files
+	ld	c,_FFIRST##
+	ld	ix,FIB
+	call	5
+	jp	nz,DO_TERM
+
+	call	CHKNEX21
+
+	; * First, extract "/ro" parameter if present
+
+	ld	de,FIB+64
+	ld	a,3
+	call	EXTPAR##
+	ld	d,0
+	jp	c,DO_FILE
+
+	ld	a,(FIB+64)
+	cp	'/'
+	jp	nz,IPARM_TERM
+	ld	a,(FIB+65)
+	or	32
+	cp	'r'
+	jp	nz,IPARM_TERM
+	ld	a,(FIB+66)
+	or	32
+	cp	'o'
+	jp	nz,IPARM_TERM
+	ld	a,(FIB+67)
+	or	a
+	jp	nz,IPARM_TERM
+	ld	d,1
+
+DO_FILE:
+	ld	a,(DRIVE)
+	ld	bc,_MAPDRV##+3*256
+	ld	hl,FIB
+	call	5
+DO_TERM:
+	ld	b,a
+	ld	c,_TERM##
+	jp	5
+
+EXTNUM_TERM:
+	call	EXT8##
+	ret	nc
+IPARM_TERM:
+	ld	b,.IPARM##
+	ld	c,_TERM##
+	jp	5
+
+NOPARM_TERM:
+	ld	b,.NOPAR##
+	ld	c,_TERM##
+	jp	5
+
+
+	;Get the next command-line parameter.
+	;Input:   IY = parameter index in IYl
+	;Output:  same as EXTPAR##, with IY advanced past this parameter
+	;Corrupts: HL (in addition to whatever EXTPAR## corrupts)
+
+GET_NEXT_PARAM:
+	ld	de,BUF
+	push	iy
+	pop	hl
+	ld	a,l
+	inc	iy
+	jp	EXTPAR##
+
+
+CHKNEX21:
+	ld	b,05Ah
+	ld	hl,01234h
+	ld	de,0ABCDh
+	ld	c,_DOSVER##
+	ld	ix,0
+	call	5
+
+	ld	a,b
+	cp	2
+	jr	c,CHK21_ERR
+	push	ix
+	pop	bc
+	ld	a,b
+	cp	1	;NEXTOR_ID
+	jr	nz,CHK21_ERR
+	ld	a,c
+	cp	2
+	jr	c,CHK21_ERR
+	ret	nz	;Nextor 3 or later
+
+	push	iy	;Nextor 2: require 2.1+
+	pop	bc
+	ld	a,b
+	or	a
+	ret	nz
+
+CHK21_ERR:
+	ld	de,BADKER21_MSG
+	ld	c,_STROUT##
+	call	5
+	ld	c,_TERM0##
+	jp	5
+
+BADKER21_MSG:
+	db	"*** File mounting requires Nextor 2.1 or later",13,10,"$"
+
+PARTITION:	db	0
+SKIP_PART:	db	0
+DO_LOCK:	db	0
+DRIVE:	db	0
+PRIMARY:	db	0
+EXTENDED:	db	0
+SLOT:	db	-1
+SEGMENT:	db	255
+DEVICE:	db	0
+FILE_FLAGS:	db	0
+
+BUF: equ 2000h
+BUF_DRIVER: equ BUF
+BUF_LETTER: equ BUF
+
+	end

@@ -16,6 +16,7 @@ The RISKYMSX cartridge by Arkadiusz Makarenko is a compact MSX flash ROM cartrid
   * `ROM Flashing Mode` is activated by pressing GRAPH key during MSX boot
   * Automatic flashing of ROMs from USB can be achieved via specially named ROM archives
   * Manually flashing of ROMs from USB is done using a simple interactive menu
+  * Automatic mapper type detection from the ROM content when flashing manually (same heuristic as openMSX)
   * FAT long filenames are supported
 * Supported mappers:
   * Standard 16KB ROMs
@@ -600,12 +601,13 @@ Use the following keys to interact with the file menu screen:
 
 Useful tips:
 * The bottom of the file menu screen shows the keys that are available to use at any moment
+* Files and directories are listed alphabetically (directories first, upper/lowercase ignored), regardless of how many files a folder contains
 * You can always hot-swap the USB drive while in the file menu, and once a new USB drive is connected you need to press `Esc` to refresh the file contents
 * DO NOT navigate or select files while you have disconnected a USB drive without pressing `Esc` first
 * Pressing `1` and choosing `SCC only (no ROM)` stores only the mapper setting in the config area (no ROM data is flashed). The cart then emulates just the SCC (0x9000-0x98FF, triggered by CS2 rather than SLTSL) on every boot unless GRAPH is held to enter the terminal
-* If you flash a ROM with the wrong mapper type, you can change the mapper type easily, without reflashing the ROM again, by pressing `1`
+* If you flash a ROM with the wrong mapper type, you can change the mapper type easily, without reflashing the ROM again, by pressing `1` (the mapper type detected from the flashed ROM content is pre-selected there too)
 
-When a ROM file is selected by pressing the `Return` key the mapper selection screen shows up.
+When a ROM file is selected by pressing the `Return` key the mapper selection screen shows up. The mapper type is auto-detected from the ROM content and pre-selected (shown as `Detected:`), so pressing `Return` again flashes the ROM with the detected mapper. You can still move the cursor to pick a different mapper type before pressing `Return`.
 
 [<img src="images/firmware-manually-selecting-mapper-type-screen.png" width="512"/>](images/firmware-manually-selecting-mapper-type-screen.png)
 

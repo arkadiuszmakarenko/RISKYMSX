@@ -58,7 +58,15 @@ internal_refresh (SCC *scc) {
         scc->sccstep = (uint32_t)((1 << 31) / (scc->clk / 2));
         scc->scctime = 0;
     } else {
-        scc->base_incr = (uint32_t)((double)scc->clk * (1 << GETA_BITS) / scc->rate);
+        /* (clk * 2^22) / rate in 32-bit integer math: take the whole part,
+         * then scale the remainder in two 11-bit steps. clk/rate is < 2^10 and
+         * the remainder is < rate <= 2^16, so nothing overflows. Error < 2^-20
+         * relative, far below SCC pitch resolution. */
+        {
+            const uint32_t whole = (scc->clk / scc->rate) << GETA_BITS;
+            const uint32_t rem = scc->clk % scc->rate;
+            scc->base_incr = whole + (((rem << 11) / scc->rate) << 11);
+        }
     }
 }
 
@@ -92,12 +100,14 @@ void SCC_set_rate (SCC *scc, uint32_t r) {
     internal_refresh (scc);
 }
 
+/* Single static instance: no heap allocation needed on the MCU.
+   This keeps malloc/sbrk (and its errno/lock machinery) out of the build. */
+static SCC scc_instance;
+
 SCC *SCC_new (uint32_t c, uint32_t r) {
     SCC *scc;
 
-    scc = (SCC *)malloc (sizeof (SCC));
-    if (scc == NULL)
-        return NULL;
+    scc = &scc_instance;
     memset (scc, 0, sizeof (SCC));
 
     scc->clk = c;
@@ -146,8 +156,7 @@ void SCC_reset (SCC *scc) {
 }
 
 void SCC_delete (SCC *scc) {
-    if (scc != NULL)
-        free (scc);
+    (void)scc; /* instance is static, nothing to free */
 }
 
 static inline void

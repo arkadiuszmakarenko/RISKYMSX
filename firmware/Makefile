@@ -3,9 +3,8 @@
 # Replaces the MounRiver Studio IDE build with a plain make-based workflow.
 # Targets:
 #   make            - build ELF/HEX/BIN
-#   make flash      - build and program the chip via minichlink (WCH-Link)
+#   make flash      - build and program the chip via OpenOCD (WCH-Link)
 #   make publish       - clean release build -> ../RISKYMSXCART_<version>.bin
-#   make flash-openocd - build and program via OpenOCD using wch-riscv.cfg
 #   make size       - show program/data size
 #   make clean      - remove build artifacts
 #
@@ -95,20 +94,37 @@ DEFINES :=
 # ---- Compiler / linker flags -------------------------------------------------
 COMMON_FLAGS := $(ARCH_FLAGS) -Os -fmessage-length=0 -fsigned-char \
                 -ffunction-sections -fdata-sections -fno-common \
-                -fmax-errors=20 -MMD -MP
+                -fmax-errors=20 -MMD -MP -flto
 
 CFLAGS   := $(COMMON_FLAGS) $(INCLUDES) $(DEFINES) -std=gnu99
 ASFLAGS  := $(COMMON_FLAGS) $(INCLUDES) -x assembler-with-cpp
 
-LDFLAGS  := $(ARCH_FLAGS) -T "$(LINKER)" -nostartfiles \
+LDFLAGS  := $(ARCH_FLAGS) -Os -flto -T "$(LINKER)" -nostartfiles \
             -Xlinker --gc-sections -Xlinker --print-memory-usage \
             -Wl,-Map,"$(BUILD)/$(TARGET).map" \
             --specs=nano.specs --specs=nosys.specs
 
 # ---- Build rules -------------------------------------------------------------
-.PHONY: all flash flash-openocd publish size clean
+.PHONY: all flash publish size clean nextor
 
-all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin
+# Nextor ROM (driver + kernel) built from ../NextorDriver and copied to
+# build/CART.NXT. Copy it to the USB stick; the terminal programs it as the
+# NEXTOR mapper. Needs N80 (dotnet); skipped with a warning if the build fails.
+NEXTOR_DIR := $(abspath ../NextorDriver)
+NEXTOR_NXT := $(BUILD)/CART.NXT
+
+all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin nextor
+
+nextor: | $(BUILD)
+	@if [ -f "$(NEXTOR_DIR)/Makefile" ]; then \
+	    { $(MAKE) --no-print-directory -C "$(NEXTOR_DIR)" && \
+	      cp "$(NEXTOR_DIR)/Nextor-3.0.RISKYMSX2.ROM" "$(NEXTOR_NXT)" && \
+	      echo "  NXT     $(NEXTOR_NXT)"; } || \
+	    echo "  WARNING: Nextor ROM build failed, $(NEXTOR_NXT) not updated"; \
+	else \
+	    echo "  SKIP    NextorDriver not found, $(NEXTOR_NXT) not updated"; \
+	fi
+
 
 $(BUILD)/$(TARGET).elf: $(OBJS) | $(BUILD)
 	@echo "  LD      $@"
@@ -142,7 +158,6 @@ $(OBJ_DIRS):
 	@mkdir -p $@
 
 # ---- Flash targets -----------------------------------------------------------
-MINICHLINK ?= minichlink
 # The stock OpenOCD has no WCH-Link driver; use the WCH fork bundled with MounRiver.
 MRS_OCD_DIR := $(abspath $(CURDIR)/../MRS_Toolchain_Linux_x64_V210/OpenOCD/OpenOCD/bin)
 ifneq ($(wildcard $(MRS_OCD_DIR)/openocd),)
@@ -154,23 +169,30 @@ else
 endif
 
 flash: $(BUILD)/$(TARGET).bin
-	@echo ">>> Flashing $(BUILD)/$(TARGET).bin to $(FLASH_ADDR) via minichlink"
-	@$(MINICHLINK) -w $< $(FLASH_ADDR)
-
-flash-openocd: $(BUILD)/$(TARGET).bin
 	@echo ">>> Flashing $(BUILD)/$(TARGET).bin via OpenOCD (WCH-Link)"
 	@$(OPENOCD) -f $(OPENOCD_CFG) \
 	    -c "program $(abspath $<) $(FLASH_ADDR) verify reset exit"
 
-# Clean release build; copies the .bin to the repo root as RISKYMSXCART_v<version>.bin
+# Clean release build; copies the .bin and the Nextor CART.NXT to the
+# repo root. The firmware binary is versioned (RISKYMSXCART_v<ver>.bin);
+# the Nextor cart is dropped as CART.NXT - it is the file the user copies
+# to the USB stick and programs via the terminal, so keeping the name
+# stable avoids a rename every release.
 VERSION := $(shell sed -n 's/.*FIRMWARE_VERSION_STRING "\(.*\)".*/\1/p' User/version.h)
 RELEASE_BIN := $(abspath $(CURDIR)/..)/$(TARGET)_$(VERSION).bin
+RELEASE_NXT := $(abspath $(CURDIR)/..)/CART.NXT
 
 publish:
 	@test -n "$(VERSION)" || { echo "Cannot read version from User/version.h"; exit 1; }
 	@$(MAKE) --no-print-directory clean
-	@$(MAKE) --no-print-directory $(BUILD)/$(TARGET).bin
+	@$(MAKE) --no-print-directory $(BUILD)/$(TARGET).bin nextor
 	@cp $(BUILD)/$(TARGET).bin $(RELEASE_BIN)
+	@if [ -f "$(NEXTOR_NXT)" ]; then \
+	    cp "$(NEXTOR_NXT)" "$(RELEASE_NXT)" && \
+	    echo ">>> Published $(RELEASE_NXT)"; \
+	else \
+	    echo "WARNING: $(NEXTOR_NXT) not built, skipping Nextor publish"; \
+	fi
 	@echo ">>> Published $(RELEASE_BIN)"
 
 # ---- Utilities ---------------------------------------------------------------

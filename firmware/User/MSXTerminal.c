@@ -4,6 +4,7 @@
 #include "ff.h"
 #include "usb_disk.h"
 #include "programflash.h"
+#include "romdetect.h"
 #include "version.h"
 
 #if defined(__GNUC__)
@@ -22,7 +23,7 @@ int PointerX = 1;
 int PointerY = 1;
 
 // Shared mapper names for both the type display and the selection list
-static const char *const kMapperNames[11] = {
+static const char *const kMapperNames[12] = {
     "Standard 16KB ROM",
     "Standard 32KB ROM",
     "Standard 48KB or 64KB ROM",
@@ -33,7 +34,8 @@ static const char *const kMapperNames[11] = {
     "ASCII 16KB",
     "NEO 8KB",
     "NEO 16KB",
-    "SCC only (no ROM)"};
+    "SCC only (no ROM)",
+    "Nextor (USB disk)"};
 
 FATFS fs;
 
@@ -47,6 +49,9 @@ void MountFilesystem (void) {
             Delay_Ms (500);
         }
     } while (fres != FR_OK);
+
+    // The USB content may have changed since the last mount
+    InvalidateFileCache();
 }
 
 void AutoProgramCart (char *Filename, CartType cartType) {
@@ -123,6 +128,62 @@ void Init_MSXTerminal (void) {
     menu.FileIndexPage = 1;
     strcpy ((char *)menu.folder, "");
     flushBuffer (&icb);
+    PrintMainMenu (menu.FileIndexPage);
+}
+
+// Print one line of at most 30 characters (the screen is 32 wide).
+static void Line (const char *text) {
+    appendString (&scb, text);
+    NewLine();
+}
+
+// "N": flash CART.NXT from the USB root as the Nextor ROM.
+static void NextorFlashFromUsb (void) {
+    FIL f;
+    FRESULT fres;
+
+    ClearScreen();
+    MovePointer (0xFF, 0xFF);
+    Line (" NEXTOR ROM");
+    NewLine();
+    fres = f_open (&f, "CART.NXT", FA_READ);
+    if (fres != FR_OK) {
+        Line (" CART.NXT not found in the");
+        Line (" root of the USB stick.");
+        NewLine();
+        Line (" Copy it there (FAT16/32)");
+        Line (" and press N again.");
+        waitBufferEmpty (&scb);
+        Delay_Ms (4000);
+        PrintMainMenu (menu.FileIndexPage);
+        return;
+    }
+    f_close (&f);
+
+    Line (" CART.NXT found.");
+    NewLine();
+    Line (" The Nextor disk must be");
+    Line (" a separate USB stick:");
+    Line (" - MBR, not GPT");
+    Line (" - FAT16 (FAT12/32 ok)");
+    Line (" - 512-byte sectors");
+    Line (" - no exFAT / NTFS");
+    Line (" - NEXTOR.SYS and");
+    Line ("   COMMAND2.COM in root");
+    waitBufferEmpty (&scb);
+    Delay_Ms (5000);
+
+    ClearScreen();
+    MovePointer (0xFF, 0xFF);
+    Line (" Programming file:");
+    Line (" CART.NXT");
+    NewLine();
+    Line (" Mapper type:");
+    PrintMapperType (NEXTOR);
+    ProgramCart (NEXTOR, "CART.NXT", "/");
+    // Only reached when programming did not reboot.
+    waitBufferEmpty (&scb);
+    Delay_Ms (3000);
     PrintMainMenu (menu.FileIndexPage);
 }
 
@@ -219,7 +280,7 @@ void PrintMainMenu (int page) {
     appendString (&scb, location);
 
     MoveCursor (23, 0);
-    appendString (&scb, " ARROWS,RET,ESC,1-MAP,BKSP-..");
+    appendString (&scb, " ARROWS,RET,ESC,1-MAP,N-NXT,BS");
 
     MoveCursor (1, 1);
     MovePointer (PointerX, PointerY);
@@ -244,7 +305,7 @@ void PrintMapperMenu() {
     appendString (&scb, FileNameSize);
 
     NewLine();
-    PrintMapperList (10);
+    PrintMapperList (5, 10);
 
     MoveCursor (21, 0);
 
@@ -256,9 +317,30 @@ void PrintMapperMenu() {
 
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
-    MoveCursor (4, 1);
+    MoveCursor (3, 0);
+    appendString (&scb, " Detecting mapper...");
+    waitBufferEmpty (&scb);
+
+    // Auto-detect the mapper from the ROM content and pre-select it; the
+    // " Detecting mapper..." line (20 chars) is overwritten below.
+    char fullPath[256];
+    CombinePath (fullPath, (char *)menu.folder, (char *)menu.Filename);
+    CartType detected;
+    MoveCursor (3, 0);
+    if (DetectCartTypeFromFile (fullPath, &detected) && (unsigned)detected < 10u) {
+        menu.CartTypeIndex = (uint32_t)detected;
+        appendString (&scb, " Detected: ");
+        int nameLen = (int)strlen (kMapperNames[detected]);
+        appendStringUpToLen (&scb, kMapperNames[detected], 20);
+        for (int i = nameLen < 20 ? nameLen : 20; i < 20; i++) {
+            append (&scb, 0x20);
+        }
+    } else {
+        appendString (&scb, " Pick mapper, press RET");
+    }
+    MoveCursor (5 + (int)menu.CartTypeIndex, 1);
     PointerX = 1;
-    PointerY = 4;
+    PointerY = 5 + (int)menu.CartTypeIndex;
     MovePointer (PointerX, PointerY);
 }
 
@@ -295,11 +377,33 @@ void ChangeMapperMenu() {
 
     MoveCursor (2, 0);
     PrintMapperType (type);
-    MoveCursor (4, 0);
-    PrintMapperList (11);
+
+    // When a ROM image is flashed, auto-detect its mapper from the cart
+    // flash content and pre-select it (SCC-only/Nextor keep current type).
+    if ((unsigned)type < (unsigned)SCCONLY) {
+        uint32_t cartBytes = (uint32_t)cfg->CartSize * 1024;
+        if (cartBytes > 0x40000) {
+            cartBytes = 0x40000;
+        }
+        CartType detected = DetectCartType ((const uint8_t *)&__cart_section_start, cartBytes);
+        if ((unsigned)detected < 12u) {
+            menu.CartTypeIndex = (uint32_t)detected;
+            MoveCursor (3, 0);
+            appendString (&scb, " Detected: ");
+            appendStringUpToLen (&scb, kMapperNames[detected], 20);
+        }
+    } else if ((unsigned)type < 12u) {
+        menu.CartTypeIndex = (uint32_t)type;
+    }
+
+    MoveCursor (5, 0);
+    PrintMapperList (5, 12);
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
-    MoveCursor (4, 1);
+    MoveCursor (5 + (int)menu.CartTypeIndex, 1);
+    PointerX = 1;
+    PointerY = 5 + (int)menu.CartTypeIndex;
+    MovePointer (PointerX, PointerY);
 }
 
 void ProcessMSXTerminal (void) {
@@ -416,6 +520,11 @@ void ProcessMSXTerminal (void) {
                     return;
                 }
             }
+            // "N" flash Nextor ROM
+            if (key == 0x4E || key == 0x6E) {
+                NextorFlashFromUsb();
+                return;
+            }
             // "1" change mapper
             if (key == 0x31) {
                 menu.CartTypeIndex = 0;
@@ -458,8 +567,8 @@ void ProcessMSXTerminal (void) {
                 NewLine();
                 appendString (&scb, " Mapper type:");
                 NewLine();
-                PrintMapperType (menu.CartTypeIndex);
-                ProgramCart (menu.CartTypeIndex, (char *)menu.Filename, (char *)menu.folder);
+                PrintMapperType ((CartType)menu.CartTypeIndex);
+                ProgramCart ((CartType)menu.CartTypeIndex, (char *)menu.Filename, (char *)menu.folder);
                 NewLine();
 
                 appendString (&scb, "Programming FAILED!");
@@ -481,7 +590,7 @@ void ProcessMSXTerminal (void) {
             }
             // cursor down
             if (key == 0x1F) {
-                if (menu.CartTypeIndex != 10) {
+                if (menu.CartTypeIndex != 11) {
                     menu.CartTypeIndex++;
                     CursorDown();
                 }
@@ -554,9 +663,9 @@ void PrintMapperType (CartType type) {
     }
 }
 
-void PrintMapperList (int count) {
+void PrintMapperList (int startRow, int count) {
     for (int i = 0; i < count; ++i) {
-        MoveCursor (4 + i, 2);
+        MoveCursor (startRow + i, 2);
         appendString (&scb, kMapperNames[i]);
     }
     MoveCursor (23, 0);

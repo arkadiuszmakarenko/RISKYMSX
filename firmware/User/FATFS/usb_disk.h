@@ -30,6 +30,10 @@ uint8_t usb_scsi_read_capacity (uint32_t *block_count, uint32_t *block_size);
 uint8_t usb_scsi_read_sector (uint32_t lba, uint8_t *buf, uint32_t block_size);
 uint8_t usb_scsi_request_sense (uint8_t *buf, uint16_t len);
 uint8_t msc_mass_storage_reset (void);
+uint8_t usb_scsi_write_blocks (uint32_t lba, const uint8_t *buf, uint32_t block_size, uint16_t count);
+uint8_t usb_scsi_read_blocks (uint32_t lba, uint8_t *buf, uint32_t block_size, uint16_t count);
+uint8_t usb_scsi_inquiry (uint8_t *buf, uint16_t len);
+uint8_t USB_TryEnsureEnumerated (void);
 void ClearUSB (void);
 
 #endif

@@ -1,0 +1,178 @@
+	name('messages')
+	TITLE	Nextor - COMMAND3.COM
+	SUBTTL	Message strings
+	INCLUDE	command.inc
+;******************************************************************************
+;
+;        The string constants used all over the program, accessed through
+; a table of addresses.
+;
+;        Based on COMMAND.COM 2.31, copyright (1986) IS Systems Ltd, and on
+; the COMMAND2.COM 2.40/2.41 additions by Fokke Post, whose source code was
+; released as freeware in 2003.
+;
+;******************************************************************************
+MESSAGES::	DEFB	"Yy",0
+	DEFB	"Nn",0
+	DEFB	" Directory of ",0
+	DEFB	" <dir> ",0
+	DEFB	" ",0
+	DEFB	" in ",0
+	DEFB	" free",0
+	DEFB	"K",0
+	DEFB	"K",0
+	DEFB	" file   ",0
+	DEFB	" files",9,0
+	DEFB	" byte",0
+	DEFB	" bytes",0
+	DEFB	"*** ",0
+	DEFB	0
+	DEFB	"Press any key to continue ",0
+	DEFB	" Volume in drive ",0
+	DEFB	": ",0
+	DEFB	"has no name",0
+	DEFB	"is ",0
+	DEFB	"Delete all files (Y/N)? ",0
+	DEFB	" -- ",0
+	DEFB	"Current date is ",0
+	DEFB	"Sun",0
+	DEFB	"Mon",0
+	DEFB	"Tues",0
+	DEFB	"Wednes",0
+	DEFB	"Thurs",0
+	DEFB	"Fri",0
+	DEFB	"Satur",0
+	DEFB	"day",0
+	DEFB	"                ",0
+	DEFB	"Enter new date",0
+	DEFB	": ",0
+	DEFB	" (",0
+	DEFB	")",0
+	DEFB	"Current time is",0
+	DEFB	"       ",0
+	DEFB	"Enter new time: ",0
+	DEFB	"Buffers is ",0
+	DEFB	"Verify is ",0
+	DEFB	"RAM disk is ",0
+	DEFB	"Drive name? (",0
+	DEFB	") ",0
+	DEFB	"All data on drive ",0
+	DEFB	": will be destroyed",0
+	DEFB	"      ",0
+	DEFB	" file copied",0
+	DEFB	" files copied",0
+
+; The HELP index text lived here (~4K) until it was moved to the
+; INDEX.HLP file, loaded on demand by the HELP command; the slot is
+; kept empty because the messages are looked up by index.
+	DEFB	0
+
+	DEFB	"Insert COMMAND3.COM disk in drive ",0,":",0
+	DEFB	"Destroy all data on RAM disk (Y/N)? ",0
+	DEFB	"COMMAND3.COM: Wrong version of Nextor",0
+	DEFB	"Terminate batch file (Y/N)? ",0
+	DEFB	"Insert batch file disk in drive ",0,":",0
+	DEFB	"Redirection error: ",0
+	DEFB	"Piping error: ",0
+	DEFB	"Batch file error: ",0
+	DEFB	"Standard input error: ",0
+	DEFB	"Standard output error: ",0
+	DEFB	" total disk space",0
+	DEFB	" used by files and directories",0
+	DEFB	" available disk space",0
+	DEFB	" = ",0
+	DEFB	"Not enough memory, system halted",0
+	DEFB	"CPU mode is ",0
+	DEFB	"Z80",0
+	DEFB	"R800-ROM",0
+	DEFB	"R800-RAM",0
+	DEFB	"DiskCheck is ",0
+	DEFB	" bytes",0
+	DEFB	" total RAM in Slot ",0
+	DEFB	" used by system",0
+	DEFB	" used by user",0
+	DEFB	" total TPA memory",0
+	DEFB	" total history buffer",0
+	DEFB	" total alias memory",0
+	DEFB	" total variable swap memory",0
+	DEFB	"COMMAND3.COM: Wrong version of NEXTOR.SYS",0
+	DEFB	"Zero allocation information mode is active, no space information to report",0
+	DEFB	"Press any key... ",0
+	DEFB	"Shell RAM is ",0
+	DEFB	"Shell RAM state can not be changed from a nested shell",0
+
+; Message #55: hint printed after 'File for HELP not found' when HELP
+; was invoked with no subject and the index file is missing (copy.mac).
+	DEFB	"The help index is in the INDEX.HLP file,",13,10
+	DEFB	"in the directory given by the HELP environment item",0
+
+; Messages #56-#84: the strings of the Nextor 3 additions (VER, FORMAT,
+; MEM, LOCK, DRIVERS, DRVINFO, DEVINFO, RALLOC and the drive mapping
+; notes of DIR/VOL/FREE), moved here from cmd.mac and files.mac so that
+; they exist in both languages.
+	DEFB	"COMMAND3.COM version ",0	; #56 (VER)
+	DEFB	"TYPE COMMAND3.COM for more details",0	; #57 (VER)
+	DEFB	"Drive ",0	; #58 (FORMAT refusals, DRVINFO)
+	DEFB	"is not mapped",0	; #59 (FORMAT refusals)
+	DEFB	"is the RAM disk",0	; #5A (FORMAT refusals)
+	DEFB	"is mapped to a disk image file",0	; #5B (FORMAT refusals)
+	DEFB	"WARNING: Drive ",0	; #5C (FORMAT confirmation)
+	DEFB	" is NOT a floppy disk.",13,10,"Are you sure? (y/n) ",0	; #5D
+
+; The MEM messages (#5E-#62). The 32 character wide layout: the slot in
+; columns 1-4, the first number column ending at column 14 (nine
+; characters wide after a slot, eight after the six character 'Total:'
+; label) and two more nine character columns ending at columns 23 and
+; 32. The Japanese header keeps the same column edges (kanji characters
+; are two columns wide), and the Japanese totals label is six columns
+; wide too.
+	DEFB	"Slot     Total Reserved     Free",13,10	; #5E (MEM)
+	DEFB	"----     ----- --------     ----",13,10,0
+	DEFB	13,10,"Total:",0	; #5F (MEM)
+	DEFB	"RAM disk size: ",0	; #60 (MEM)
+	DEFB	"TPA end address: ",0	; #61 (MEM)
+	DEFB	"h",13,10,"TPA size: ",0	; #62 (MEM)
+
+	DEFB	"No drives are locked",0	; #63 (LOCK)
+	DEFB	"is locked",0	; #64 (LOCK)
+	DEFB	"is not locked",0	; #65 (LOCK)
+
+	DEFB	"Legacy MSX-DOS driver",0	; #66 (DRIVERS, DRVINFO)
+	DEFB	" on slot ",0	; #67 (DRIVERS, DRVINFO)
+	DEFB	"No drives assigned at boot time",0	; #68 (DRIVERS)
+	DEFB	"Drives assigned at boot time: ",0	; #69 (DRIVERS)
+	DEFB	"from ",0	; #6A (DRIVERS)
+	DEFB	" to ",0	; #6B (DRIVERS)
+	DEFB	": is assigned to:",0	; #6C (DRVINFO)
+	DEFB	"RAM disk",0	; #6D (DRVINFO)
+	DEFB	"Ghost drive of ",0	; #6E (DRVINFO, DIR/VOL/FREE)
+	DEFB	"File ",0	; #6F (DRVINFO)
+	DEFB	" on drive ",0	; #70 (DRVINFO)
+	DEFB	" (read only)",0	; #71 (DRVINFO, DIR/VOL/FREE)
+	DEFB	"Device ",0	; #72 (DRVINFO)
+	DEFB	"Relative unit ",0	; #73 (DRVINFO)
+
+	DEFB	"Device number ",0	; #74 (DEVINFO)
+	DEFB	"  Device manufacturer: ",0	; #75 (DEVINFO)
+	DEFB	"  Device name: ",0	; #76 (DEVINFO)
+	DEFB	"  Medium name: ",0	; #77 (DEVINFO)
+	DEFB	"  Device serial number: ",0	; #78 (DEVINFO)
+	DEFB	"  Block device",0	; #79 (DEVINFO)
+	DEFB	"  CD-ROM",0	; #7A (DEVINFO)
+	DEFB	"  Unknown type",0	; #7B (DEVINFO)
+	DEFB	", offline",0	; #7C (DEVINFO)
+	DEFB	", removable",0	; #7D (DEVINFO)
+	DEFB	", fixed",0	; #7E (DEVINFO)
+	DEFB	", read-only",0	; #7F (DEVINFO)
+	DEFB	", floppy disk",0	; #80 (DEVINFO)
+
+	DEFB	" Drive mapped to the RAM disk",0	; #81 (DIR/VOL/FREE)
+	DEFB	" Drive mapped to file ",0	; #82 (DIR/VOL/FREE)
+	DEFB	" on ",0	; #83 (DIR/VOL/FREE)
+
+	DEFB	"No drives are in reduced allocation information mode",0	; #84 (RALLOC)
+
+	DEFB	0	; #85 (DIR: after the K suffix of the totals; 'bytes' in Japanese)
+
+	DEFB	"Backslash instead of yen sign is ",0	; #86 (YENSLASH)
+

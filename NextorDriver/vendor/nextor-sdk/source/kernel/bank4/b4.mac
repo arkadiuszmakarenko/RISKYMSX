@@ -1,0 +1,8 @@
+	.z80
+	name('b4')
+BANK	equ	4
+;
+	include	../bank.inc
+	include	../bank2/b2labels.inc
+;
+	end

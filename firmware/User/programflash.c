@@ -147,7 +147,16 @@ void ProgramCart (CartType cartType, char *Filename, char *Folder) {
 
         // Progress feedback every 5%
         static uint8_t last_percent = 0;
-        uint8_t percent = (uint8_t)(((uint64_t)IAP_WriteIn_Count * 100) / fileSize);
+        // 32-bit-only progress: scale down until the numerator fits in 32 bits.
+        // Accurate to well under 1% for any size the flash accepts (<=256 KB).
+        uint32_t part = IAP_WriteIn_Count;
+        uint32_t whole = fileSize;
+        while ((part & 0xF0000000U) != 0U) {
+            part >>= 4;
+            whole >>= 4;
+            if (whole == 0U) whole = 1U;
+        }
+        uint8_t percent = (uint8_t)((part * 100U) / whole);
         if (percent > 100)
             percent = 100;
         if (percent >= last_percent + 5) {

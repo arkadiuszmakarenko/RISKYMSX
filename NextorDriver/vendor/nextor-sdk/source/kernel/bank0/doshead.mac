@@ -1,0 +1,268 @@
+	.z80
+	name('doshead')
+	title	MSX-DOS 2 ROM   Copyright (1986)  IS Systems Ltd.
+	subttl	ROM Header for MSX-DOS 2.0 ROM
+;-----------------------------------------------------------------------------
+;
+	INCLUDE	../macros.inc
+	INCLUDE	../const.inc
+;
+;
+; This  is the ROM header for the MSX-DOS ROM.  It must always be linked first
+; in the ROM so it appears at 4000h.
+;
+;-----------------------------------------------------------------------------
+;
+PPI.AR		equ	0A8h		;PPI Port A data read
+
+
+ROMST::		defb	"AB"		;Indicates valid ROM
+		defw	DOINIT		;Banked ROM initialization entry point
+		defw	STATEMENT##	;BASIC statement handler entry point
+		defw	BASDEV_CHK## ;Extension device entry point
+		defw	0		;No BASIC program text
+		defw	0		;Reserved
+		defw	0		;Reserved
+		defw	0		;Reserved
+;
+;
+DRVENT::				; DISK DRIVER ENTRY POINTS
+;
+DKRWENT::	jp	DIO_ENTRY##	;Sector read/write
+DKCHGENT::	jp	CHG_ENTRY##	;Disk change detection
+GTDPBENT::	jp	DPB_ENTRY##	;Get disk parameter block
+CHOIENT::	jp	CHO_ENTRY##	;Get format choice string
+DKFMTENT::	jp	FMT_ENTRY##	;Format a disk
+MTOFFENT::	jp	MOF_ENTRY##	;Turn motor off
+;
+;
+BASENT::	jp	BASIC##		;Entry point for "BASIC" command
+					; from MSX-DOS CLI.
+;
+FORENT::	scf			;Entry point for "FORMAT" command
+		jp	$FORMAT##	; from MSX-DOS CLI.
+;
+		jp	$MTOFF##	;Entry point to switch motor off
+		nop			; on all drives.
+;
+GSLOT1:		jp	GSLT1##		;GSLOT1 routine, used by disk
+					; drivers and XFER. (402Dh)
+;
+		ld	hl,(DOSHIM##)	;Version 1 compatible $INIT entry
+		ret			; and should not move.
+;
+		jp	BIOS_STAT##	;Version 1 compatible $STAT entry
+		nop
+;
+$DOSVER::	defw	_$DOSVER##	;DOS version string.
+		defw	0
+
+		ld	a,(hl)		;403Ch - RDBANK, read byte from bank.
+		ret		;Use with CALBNK to the desired bank,
+		ret		;pass read address in HL.
+		jp	CALLB0		;403Fh
+		jp	CALBNK		;4042h
+		jp	GWRK##		;4045h
+		jp	CALDRV		;4048h
+		jp  CALLB0_IX_IY ;404Bh
+;
+;
+; --------  UP TO HERE ARE REFERENCED FROM OUTSIDE OF ROM  --------
+;
+
+; Call extended BIOS processing code
+; Extended BIOS code in driver must return with 
+; IYl=1 if old extended BIOS hook is to be called,
+; with IYl=0 otherwise.
+
+@EXTBIO::	ld	ix,MAPBIO##
+		ex	af,af'
+		xor	a
+		call	CALBNK
+		ex	af,af'
+		push	iy
+		pop	af	;Now IYl:0 is in the carry flag
+		jr	nc,EXTB_RET
+		ex	af,af'
+		jp	FCALSAV##
+EXTB_RET:	ex	af,af'
+		ret
+
+;
+JPHL	equ	$+1
+JPIX:		jp	(ix)
+;
+
+;
+;-----------------------------------------------------------------------------
+;
+; Call a routine in the disk driver (bank 6)
+; Input: (BK4_ADD) = Routine address
+;        AF, BC, DE, HL, IY passed to the routine
+
+CALDRV:
+		ld	ix,(BK4_ADD##)
+		ex	af,af'
+		ld	a,DV_BANK##
+		jr	CALBNK
+
+;
+;-----------------------------------------------------------------------------
+;
+; Switch to bank 0 while preserving AF (and all other registers).
+; Used by the KABJ/KDERJ page-3 RAM hooks: those hooks are invoked from
+; an unknown kernel bank, and must end up in bank 0 (where KABR/KDERR live)
+; with A still holding the .ABORT/.STOP/error marker the caller supplied.
+;
+; This routine lives inside the doshead area (4000h-40FEh) which the Makefile
+; copies byte-for-byte into every kernel bank, so "call CHGBNK_KEEP_AF" from
+; the page-3 RAM hook works regardless of which kernel bank happens to be
+; paged in page 1. The 7FD0h-7FFFh range can't be used for this because it's
+; reserved for the OEM/driver CHGBNK implementation.
+
+CHGBNK_KEEP_AF::
+		push	af
+		xor	a
+		call	7FD0h		;CHGBNK - select bank 0
+		pop	af
+		ret
+
+		defs	ROMST+78h-$,0FFh
+;
+;-----------------------------------------------------------------------------
+;
+		jp	BIOS_IN##	;Version 1 compatible $IN entry
+
+NXT3_SIGNATURE:
+		db "NXT3",0		;407Bh - Signature for Nextor 3.0+ ROMs
+		defs	ROMST+80h-$,0FFh
+
+;-----------------------------------------------------------------------------
+;
+; Switch bank 0 or 3 in page 1, then call routine whose address is at (BK4_ADD),
+; then restore original bank.
+; All main registers (AF, BC, DE, HL) are passed to the routine called,
+; IX is passed in (TMP_IX##) and IY is passed in (TMP_IY##).
+; All drivers can use this, ROM drivers can use CALLB0 instead.
+
+CALLB0_IX_IY:
+		ld	ix,(TMP_IX##)
+		ld	iy,(TMP_IY##)
+		jr CALLB0
+
+;-----------------------------------------------------------------------------
+;
+
+		defs	ROMST+8Fh-$,0FFh
+
+		jp	BIOS_OUT##	;Version 1 compatible $OUT entry
+;
+;
+;-----------------------------------------------------------------------------
+;
+; Call routine in bank 4 (or 6 if bit 15 of BK4_ADD is set).
+; Routine address is placed in BK4_ADD (bit 15 is cleared before use).
+; IY is set to RAM_BASE for the called routine.
+; All registers except IX and alternate are passed to the routine.
+
+C4PBK::	ld	iy,RAM_BASE##
+		ex	af,af'
+		push	hl
+		ld	hl,BK4_ADD##+1	;Point to high byte of address
+		ld	a,(hl)
+		res	7,(hl)		;Clear bank flag in address
+		pop	hl
+		rlca			;Old bit 7 into carry
+		sbc	a,a		;00h (bank 4) or FFh (bank 6)
+		and	2		;00h or 02h
+		or	4		;04h or 06h = bank number
+		jr	CALLB0_CMN
+
+;-----------------------------------------------------------------------------
+;
+; Switch bank 0 or 3 in page 1, then call routine whose address is at (BK4_ADD),
+; then restore original bank.
+; All registers are passed to the routine called except alternate.
+; ROM drivers can use this, RAM drivers should use CALLB0_IX_IY instead.
+
+CALLB0:		ex	af,af'
+		ld	a,(MAIN_BANK##)
+		push	ix
+		exx
+		pop hl
+		exx
+CALLB0_CMN:	ld	ix,(BK4_ADD##)
+		jr	CALBNK
+
+;-----------------------------------------------------------------------------
+;
+; CALBNK: call a routine in another bank (can be used by driver code)
+; Input: A = Bank number
+;        IX = Routine address
+;        AF' = AF for the routine
+;        HL' = IX for the routine
+;        BC, DE, HL, IY passed to the routine
+
+; DV_TIRQ is the entry for the driver timer interrupt code.
+
+DV_TIRQ::	ex	af,af'
+		ld	a,DV_BANK##
+		ld	ix,DRIVER.TIMI_ENTRY##
+
+CALBNK:		exx
+		ld	e,a
+		ld	a,(BNK_ID##)
+		push	af
+		call	CBNK_RET_TO_IX
+		ex	af,af'
+		pop	af
+		call	CHGBNK	;Re-select caller bank
+		ex	af,af'
+		ret
+
+CBNK_RET_TO_IX:
+		push	hl
+		ex	(sp),ix
+		ld	a,e
+		exx
+		call	CHGBNK	;Select desired bank
+		ex	af,af'
+		ret			;Go do the function
+
+;-----------------------------------------------------------------------------
+;
+; Destination of timer interrupt routine:
+; Call the TIMINT routine in bank 0,
+; this will do the system work and then
+; it will call DV_TIRQ via TIMI_DRV.
+;
+; It is necessary to do this in this way to support
+; Nextor kernels acting as slaves.
+
+@TIME_IRQ::	push	af		;Preserve VDP status
+		ld	a,(BNK_ID##)	;Save current bank
+		push	af
+		xor 	a		
+		call	CHGBNK
+		call	TIMINT##
+		pop	af		;Restore old bank
+		call	CHGBNK
+		pop	af		;Restore VDP status
+		ret
+
+; DOINIT must be positioned so that its CALL CHGBNK lines up with
+; mknexrom's 8K-mapper patch slot (see M8K_MAPPER_PATCH_OFFSET in
+; const.inc).
+	if	$-ROMST gt M8K_MAPPER_PATCH_OFFSET-1
+	.error	<doshead exceeds the 8K mapper patch slot>
+	endif
+	defs	M8K_MAPPER_PATCH_OFFSET-1-($-ROMST), 0FFh
+
+DOINIT:		xor	a		;Jump to the INIT routine in bank-0
+		call	CHGBNK		;mknexrom replaces this with LD (XXXX),A on 8K mappers
+		jp	INIT##
+
+HEADEND::
+	finish	<DOSHEAD>
+	end
+;

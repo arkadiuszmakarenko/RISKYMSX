@@ -42,7 +42,7 @@ void CursorUp();
 void CursorDown();
 void Reset();
 void PrintMapperType (CartType type);
-void PrintMapperList (int count);
+void PrintMapperList (int startRow, int count);
 void ResetPointer();
 
 #endif /* __MSXTerminal_H */

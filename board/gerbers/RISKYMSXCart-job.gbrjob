@@ -3,9 +3,9 @@
     "GenerationSoftware": {
       "Vendor": "KiCad",
       "Application": "Pcbnew",
-      "Version": "9.0.0"
+      "Version": "10.0.7"
     },
-    "CreationDate": "2025-04-20T21:07:24+01:00"
+    "CreationDate": "2026-10-20T21:02:18+01:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
@@ -27,7 +27,9 @@
       "PadToPad": 0.2032,
       "PadToTrack": 0.2032,
       "TrackToTrack": 0.2032,
-      "MinLineWidth": 0.2
+      "MinLineWidth": 0.2,
+      "TrackToRegion": 0.2032,
+      "RegionToRegion": 0.2032
     },
     {
       "Layers": "Inner",
@@ -46,12 +48,12 @@
     },
     {
       "Path": "RISKYMSXCart-In1_Cu.gbr",
-      "FileFunction": "Copper,L5,Inr",
+      "FileFunction": "Copper,L2,Inr",
       "FilePolarity": "Positive"
     },
     {
       "Path": "RISKYMSXCart-In2_Cu.gbr",
-      "FileFunction": "Copper,L7,Inr",
+      "FileFunction": "Copper,L3,Inr",
       "FilePolarity": "Positive"
     },
     {
