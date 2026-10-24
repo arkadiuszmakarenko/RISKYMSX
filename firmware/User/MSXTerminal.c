@@ -4,6 +4,7 @@
 #include "ff.h"
 #include "usb_disk.h"
 #include "programflash.h"
+#include "romdetect.h"
 #include "version.h"
 
 #if defined(__GNUC__)
@@ -304,7 +305,7 @@ void PrintMapperMenu() {
     appendString (&scb, FileNameSize);
 
     NewLine();
-    PrintMapperList (10);
+    PrintMapperList (5, 10);
 
     MoveCursor (21, 0);
 
@@ -316,9 +317,30 @@ void PrintMapperMenu() {
 
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
-    MoveCursor (4, 1);
+    MoveCursor (3, 0);
+    appendString (&scb, " Detecting mapper...");
+    waitBufferEmpty (&scb);
+
+    // Auto-detect the mapper from the ROM content and pre-select it; the
+    // " Detecting mapper..." line (20 chars) is overwritten below.
+    char fullPath[256];
+    CombinePath (fullPath, (char *)menu.folder, (char *)menu.Filename);
+    CartType detected;
+    MoveCursor (3, 0);
+    if (DetectCartTypeFromFile (fullPath, &detected) && (unsigned)detected < 10u) {
+        menu.CartTypeIndex = (uint32_t)detected;
+        appendString (&scb, " Detected: ");
+        int nameLen = (int)strlen (kMapperNames[detected]);
+        appendStringUpToLen (&scb, kMapperNames[detected], 20);
+        for (int i = nameLen < 20 ? nameLen : 20; i < 20; i++) {
+            append (&scb, 0x20);
+        }
+    } else {
+        appendString (&scb, " Pick mapper, press RET");
+    }
+    MoveCursor (5 + (int)menu.CartTypeIndex, 1);
     PointerX = 1;
-    PointerY = 4;
+    PointerY = 5 + (int)menu.CartTypeIndex;
     MovePointer (PointerX, PointerY);
 }
 
@@ -355,11 +377,33 @@ void ChangeMapperMenu() {
 
     MoveCursor (2, 0);
     PrintMapperType (type);
-    MoveCursor (4, 0);
-    PrintMapperList (12);
+
+    // When a ROM image is flashed, auto-detect its mapper from the cart
+    // flash content and pre-select it (SCC-only/Nextor keep current type).
+    if ((unsigned)type < (unsigned)SCCONLY) {
+        uint32_t cartBytes = (uint32_t)cfg->CartSize * 1024;
+        if (cartBytes > 0x40000) {
+            cartBytes = 0x40000;
+        }
+        CartType detected = DetectCartType ((const uint8_t *)&__cart_section_start, cartBytes);
+        if ((unsigned)detected < 12u) {
+            menu.CartTypeIndex = (uint32_t)detected;
+            MoveCursor (3, 0);
+            appendString (&scb, " Detected: ");
+            appendStringUpToLen (&scb, kMapperNames[detected], 20);
+        }
+    } else if ((unsigned)type < 12u) {
+        menu.CartTypeIndex = (uint32_t)type;
+    }
+
+    MoveCursor (5, 0);
+    PrintMapperList (5, 12);
     MoveCursor (23, 0);
     appendString (&scb, " UP,DOWN,RETURN,ESC ");
-    MoveCursor (4, 1);
+    MoveCursor (5 + (int)menu.CartTypeIndex, 1);
+    PointerX = 1;
+    PointerY = 5 + (int)menu.CartTypeIndex;
+    MovePointer (PointerX, PointerY);
 }
 
 void ProcessMSXTerminal (void) {
@@ -619,9 +663,9 @@ void PrintMapperType (CartType type) {
     }
 }
 
-void PrintMapperList (int count) {
+void PrintMapperList (int startRow, int count) {
     for (int i = 0; i < count; ++i) {
-        MoveCursor (4 + i, 2);
+        MoveCursor (startRow + i, 2);
         appendString (&scb, kMapperNames[i]);
     }
     MoveCursor (23, 0);
