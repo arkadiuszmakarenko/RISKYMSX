@@ -600,6 +600,7 @@ Use the following keys to interact with the file menu screen:
 
 Useful tips:
 * The bottom of the file menu screen shows the keys that are available to use at any moment
+* Files and directories are listed alphabetically (directories first, upper/lowercase ignored). Folders containing more than ~220 files show the remaining files after the sorted ones, in USB order
 * You can always hot-swap the USB drive while in the file menu, and once a new USB drive is connected you need to press `Esc` to refresh the file contents
 * DO NOT navigate or select files while you have disconnected a USB drive without pressing `Esc` first
 * Pressing `1` and choosing `SCC only (no ROM)` stores only the mapper setting in the config area (no ROM data is flashed). The cart then emulates just the SCC (0x9000-0x98FF, triggered by CS2 rather than SLTSL) on every boot unless GRAPH is held to enter the terminal

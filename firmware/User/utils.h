@@ -36,6 +36,7 @@ int strToInt (const char *str);
 int intToString (int num, char *str);
 
 int listFiles (uint8_t folder[256], FileEntry FileArray[], int FileArraySize, int page);
+void InvalidateFileCache (void);
 void CombinePath (char *dest, const char *folder, const char *filename);
 
 #endif  // CIRCULAR_BUFFER_H

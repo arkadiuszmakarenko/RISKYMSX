@@ -48,6 +48,9 @@ void MountFilesystem (void) {
             Delay_Ms (500);
         }
     } while (fres != FR_OK);
+
+    // The USB content may have changed since the last mount
+    InvalidateFileCache();
 }
 
 void AutoProgramCart (char *Filename, CartType cartType) {
