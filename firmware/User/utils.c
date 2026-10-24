@@ -3,7 +3,7 @@
 #include "MSXTerminal.h"
 
 #pragma GCC push_options
-#pragma GCC optimize("Ofast")
+#pragma GCC optimize("Os")
 
 extern CircularBuffer scb;
 
