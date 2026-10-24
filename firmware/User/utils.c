@@ -141,44 +141,42 @@ int strToInt (const char *str) {
 }
 
 // ---------------------------------------------------------------------------
-// Alphabetical file cache
+// Alphabetical page selection
 // ---------------------------------------------------------------------------
 
-#define SC_MAX_ENTRIES 224 // maximum entries cached (and sorted) per folder
-#define SC_POOL_SIZE 6144  // bytes available for the file names themselves
+#define SB_MAX_PAGES 40    // page boundaries remembered per folder
+#define SB_POOL_SIZE 1024  // bytes reserved for the boundary names
 
-// Cache for the listing of the folder currently shown. FatFs returns entries
-// in on-disk (FAT) order, so the whole folder is read into this cache once and
-// sorted alphabetically before paging through it. Only a bounded number of
-// entries fits in RAM: folders with more files show the first SC_MAX_ENTRIES
-// alphabetically and the remaining ones in USB order after those.
+// Listing files alphabetically requires looking at the whole folder, but RAM
+// is too small to hold an entire folder listing. Instead each page is selected
+// straight from the USB stick: a page is the smallest FileArraySize entries
+// that come strictly after the last entry of the previous page. Only those
+// last names (boundaries) of already visited pages are remembered here, which
+// is enough to move to the next page and back, and to re-walk to any later
+// page when a boundary is not remembered. Folders of any size are listed in
+// full alphabetical order.
 static struct {
-    uint8_t valid;                    // cache matches the requested folder
-    char folder[256];                 // folder this cache was built for
-    uint16_t count;                   // number of sorted entries below
-    uint16_t rawCount;                // raw directory entries consumed so far
-    uint16_t nameOff[SC_MAX_ENTRIES]; // offset of each name in the pool
-    uint8_t isDir[SC_MAX_ENTRIES];
-    uint32_t size[SC_MAX_ENTRIES];    // in bytes, as reported by FatFs
+    uint8_t valid;              // boundary info matches the requested folder
+    char folder[256];           // folder the boundaries were collected for
+    uint16_t count;             // number of remembered boundaries
+    uint16_t off[SB_MAX_PAGES]; // pool offset of the boundary of page (index+1)
     uint16_t poolUsed;
-    char pool[SC_POOL_SIZE];
-} sc;
+    char pool[SB_POOL_SIZE];    // per boundary: isDir byte + zero terminated name
+} sb;
 
-// Call after (re)mounting the USB stick: the cached listing may be stale.
+// Call after (re)mounting the USB stick: the remembered boundaries may be stale.
 void InvalidateFileCache (void) {
-    sc.valid = 0;
+    sb.valid = 0;
 }
 
-// Case-insensitive comparison of two cached entries, directories first.
-static int scCompare (uint16_t offA, uint8_t isDirA, uint16_t offB, uint8_t isDirB) {
+// Case-insensitive comparison of two entries, directories first.
+static int sbCompare (uint8_t isDirA, const char *na, uint8_t isDirB, const char *nb) {
     if (isDirA != isDirB) {
         return isDirA ? -1 : 1;
     }
-    const unsigned char *na = (const unsigned char *)sc.pool + offA;
-    const unsigned char *nb = (const unsigned char *)sc.pool + offB;
     for (;;) {
-        unsigned char ca = *na++;
-        unsigned char cb = *nb++;
+        unsigned char ca = (unsigned char)*na++;
+        unsigned char cb = (unsigned char)*nb++;
         if (ca >= 'A' && ca <= 'Z') ca += 0x20;
         if (cb >= 'A' && cb <= 'Z') cb += 0x20;
         if (ca != cb) return (int)ca - (int)cb;
@@ -186,101 +184,114 @@ static int scCompare (uint16_t offA, uint8_t isDirA, uint16_t offB, uint8_t isDi
     }
 }
 
-// Insertion sort over the parallel cache arrays (counts are small).
-static void scSort (void) {
-    for (int i = 1; i < (int)sc.count; i++) {
-        uint16_t off = sc.nameOff[i];
-        uint8_t isDir = sc.isDir[i];
-        uint32_t size = sc.size[i];
-        int j = i - 1;
-        while (j >= 0 && scCompare (off, isDir, sc.nameOff[j], sc.isDir[j]) < 0) {
-            sc.nameOff[j + 1] = sc.nameOff[j];
-            sc.isDir[j + 1] = sc.isDir[j];
-            sc.size[j + 1] = sc.size[j];
-            j--;
-        }
-        sc.nameOff[j + 1] = off;
-        sc.isDir[j + 1] = isDir;
-        sc.size[j + 1] = size;
+// Remember the last entry of a full page as the boundary of that page.
+// Boundaries are stored contiguously from page 1 on: once the pool is full,
+// later pages simply are not remembered (they get walked again instead), so
+// every slot below sb.count always points to a valid boundary.
+static void sbStoreBoundary (int page, const FileEntry *last) {
+    size_t len;
+    int slot = page - 1;
+    if (slot >= SB_MAX_PAGES || slot != (int)sb.count) {
+        return; // beyond the remembered range or already stored this session
     }
+    len = strlen (last->name) + 1;
+    if ((uint32_t)sb.poolUsed + 1 + len > sizeof (sb.pool)) {
+        return; // pool full: further pages stay reachable, they just re-walk
+    }
+    sb.off[slot] = sb.poolUsed;
+    sb.pool[sb.poolUsed++] = (char)last->isDir;
+    memcpy (sb.pool + sb.poolUsed, last->name, len);
+    sb.poolUsed += len;
+    sb.count = slot + 1;
+}
+
+// Fill FileArray with the smallest FileArraySize entries that come strictly
+// after the boundary entry (boundName == NULL = from the very beginning of
+// the folder) and return how many entries were collected.
+static int sbSelectPage (const char *folder, uint8_t boundIsDir, const char *boundName, FileEntry FileArray[], int FileArraySize) {
+    DIR dir;
+    FILINFO fno;
+    FileEntry e;
+    int size = 0;
+
+    if (f_opendir (&dir, folder) != FR_OK) {
+        return 0;
+    }
+    while (f_readdir (&dir, &fno) == FR_OK && fno.fname[0] != 0) {
+        e.isDir = (fno.fattrib & AM_DIR) ? 1 : 0;
+        e.size_kb = e.isDir ? 0 : (uint32_t)fno.fsize;
+        strncpy (e.name, fno.fname, sizeof (e.name) - 1);
+        e.name[sizeof (e.name) - 1] = 0;
+
+        // skip everything up to and including the boundary
+        if (boundName != NULL && sbCompare (e.isDir, e.name, boundIsDir, boundName) <= 0) {
+            continue;
+        }
+        // insert into the sorted page, keeping only the smallest entries
+        if (size < FileArraySize || sbCompare (e.isDir, e.name, FileArray[size - 1].isDir, FileArray[size - 1].name) < 0) {
+            int i = size < FileArraySize ? size++ : size - 1;
+            while (i > 0 && sbCompare (e.isDir, e.name, FileArray[i - 1].isDir, FileArray[i - 1].name) < 0) {
+                FileArray[i] = FileArray[i - 1];
+                i--;
+            }
+            FileArray[i] = e;
+        }
+    }
+    f_closedir (&dir);
+    return size;
 }
 
 int listFiles (uint8_t folder[256], FileEntry FileArray[], int FileArraySize, int page) {
-    DIR dir;
-    FILINFO fno;
-    int firstItem = (page - 1) * FileArraySize;
+    const char *boundName = NULL;
+    uint8_t boundIsDir = 0;
+    char walkName[256]; // last entry of the previous page while walking
     int size = 0;
+    int k;
 
     if (page < 1) {
         page = 1;
-        firstItem = 0;
     }
 
-    // Rebuild the cache when a different folder is opened or after a remount
-    if (!sc.valid || strcmp (sc.folder, (const char *)folder) != 0) {
-        sc.valid = 1;
-        strncpy (sc.folder, (const char *)folder, sizeof (sc.folder) - 1);
-        sc.folder[sizeof (sc.folder) - 1] = 0;
-        sc.count = 0;
-        sc.poolUsed = 0;
-
-        if (f_opendir (&dir, sc.folder) == FR_OK) {
-            while (sc.count < SC_MAX_ENTRIES) {
-                int len;
-                if (f_readdir (&dir, &fno) != FR_OK || fno.fname[0] == 0) break;
-                len = strlen (fno.fname);
-                if ((uint32_t)sc.poolUsed + len + 1 > sizeof (sc.pool)) break; // pool full
-                memcpy (sc.pool + sc.poolUsed, fno.fname, len + 1);
-                sc.nameOff[sc.count] = sc.poolUsed;
-                sc.isDir[sc.count] = (fno.fattrib & AM_DIR) ? 1 : 0;
-                sc.size[sc.count] = (uint32_t)fno.fsize;
-                sc.poolUsed += len + 1;
-                sc.count++;
-            }
-            f_closedir (&dir);
-        }
-        sc.rawCount = sc.count;
-        scSort();
+    // Start over when a different folder is opened or after a remount
+    if (!sb.valid || strcmp (sb.folder, (const char *)folder) != 0) {
+        sb.valid = 1;
+        strncpy (sb.folder, (const char *)folder, sizeof (sb.folder) - 1);
+        sb.folder[sizeof (sb.folder) - 1] = 0;
+        sb.count = 0;
+        sb.poolUsed = 0;
     }
 
-    // Page inside the alphabetically sorted cache
-    if (firstItem < (int)sc.count) {
-        int n = (int)sc.count - firstItem;
-        if (n > FileArraySize) n = FileArraySize;
-        for (int i = 0; i < n; i++) {
-            int e = firstItem + i;
-            strncpy (FileArray[i].name, sc.pool + sc.nameOff[e], sizeof (FileArray[i].name) - 1);
-            FileArray[i].name[sizeof (FileArray[i].name) - 1] = 0;
-            FileArray[i].isDir = sc.isDir[e];
-            FileArray[i].size_kb = sc.size[e];
+    if (page > 1 && page - 2 < (int)sb.count) {
+        // The boundary of the previous page is remembered: select directly
+        boundIsDir = (uint8_t)sb.pool[sb.off[page - 2]];
+        boundName = sb.pool + sb.off[page - 2] + 1;
+        k = page;
+    } else if (page == 1) {
+        k = 1; // select from the beginning of the folder
+    } else {
+        // The page has not been reached before: walk from the last remembered
+        // boundary, using each visited page's last entry as the next boundary
+        k = (int)sb.count + 1;
+        if (k > 1) {
+            boundIsDir = (uint8_t)sb.pool[sb.off[k - 2]];
+            boundName = sb.pool + sb.off[k - 2] + 1;
         }
-        return n;
     }
 
-    // Page beyond the cache: continue in USB order, skipping cached entries
-    if (f_opendir (&dir, (char *)folder) != FR_OK) {
-        return 0;
-    }
-    for (int idx = 0; idx < (int)sc.rawCount; idx++) {
-        if (f_readdir (&dir, &fno) != FR_OK || fno.fname[0] == 0) {
-            f_closedir (&dir);
-            return size;
+    for (; k <= page; k++) {
+        size = sbSelectPage (sb.folder, boundIsDir, boundName, FileArray, FileArraySize);
+        if (size < FileArraySize) {
+            // last page of the folder (empty when past the end)
+            return (k == page) ? size : 0;
         }
+        // use this page's last entry as the boundary for the next one and
+        // remember it for later page turns (skipped when the pool is full,
+        // in which case those pages just get walked again)
+        strcpy (walkName, FileArray[size - 1].name);
+        boundIsDir = FileArray[size - 1].isDir;
+        boundName = walkName;
+        sbStoreBoundary (k, &FileArray[size - 1]);
     }
-    while (size < FileArraySize) {
-        if (f_readdir (&dir, &fno) != FR_OK || fno.fname[0] == 0) break;
-        strncpy (FileArray[size].name, fno.fname, sizeof (FileArray[size].name) - 1);
-        FileArray[size].name[sizeof (FileArray[size].name) - 1] = 0;
-        if (fno.fattrib & AM_DIR) {
-            FileArray[size].isDir = 1;
-            FileArray[size].size_kb = 0;
-        } else {
-            FileArray[size].isDir = 0;
-            FileArray[size].size_kb = (uint32_t)fno.fsize;
-        }
-        size++;
-    }
-    f_closedir (&dir);
     return size;
 }
 
