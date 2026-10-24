@@ -1,0 +1,109 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential make zip
+
+      - name: Install WCH RISC-V toolchain
+        run: |
+          archive="$RUNNER_TEMP/wch-toolchain.tar.xz"
+          toolchain="$RUNNER_TEMP/riscv-toolchain"
+          curl --fail --location --retry 3 \
+            https://github.com/arkadiuszmakarenko/WCHToolchain/releases/download/ToolchainV210/MRS_Toolchain_Linux_x64_V210.tar.xz \
+            --output "$archive"
+          mkdir -p "$toolchain"
+          tar -xJf "$archive" -C "$toolchain"
+          compiler="$toolchain/RISC-V Embedded GCC12/bin/riscv-wch-elf-gcc"
+          test -x "$compiler"
+          "$compiler" --version
+          echo "TOOLCHAIN_DIR=$toolchain/RISC-V Embedded GCC12/bin" >> "$GITHUB_ENV"
+
+      - name: Build firmware and Nextor cartridge
+        run: make -C firmware all TOOLCHAIN_DIR="$TOOLCHAIN_DIR" PREFIX=riscv-wch-elf-
+
+      - name: Package release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -nE 's/^#define FIRMWARE_VERSION_STRING "([^"]+)".*/\1/p' firmware/User/version.h)"
+          test -n "$version" || { echo "Could not read firmware version" >&2; exit 1; }
+
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match firmware version $version" >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          test -s firmware/build/RISKYMSXCART.bin
+          test -s firmware/build/RISKYMSXCART.hex
+          test -s firmware/build/CART.NXT
+          cp firmware/build/RISKYMSXCART.bin "dist/RISKYMSXCART_${version}.bin"
+          cp firmware/build/RISKYMSXCART.hex "dist/RISKYMSXCART_${version}.hex"
+          cp firmware/build/CART.NXT dist/CART.NXT
+
+          (
+            cd board/gerbers
+            zip -9 -j "$GITHUB_WORKSPACE/dist/RISKYMSX-${version}-Gerbers.zip" \
+              ./*.gbr ./*.drl ./*.gbrjob
+          )
+          cp RISKYMSXCart.csv dist/RISKYMSX-BOM.csv
+          cp board/bom/ibom.html dist/RISKYMSX-interactive-BOM.html
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: RISKYMSX-release-assets
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged files
+        uses: actions/download-artifact@v4
+        with:
+          name: RISKYMSX-release-assets
+          path: dist
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "RISKYMSX $TAG"
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            args=(--title "RISKYMSX $TAG" --generate-notes)
+            if [[ "$TAG" == *-* ]]; then
+              args+=(--prerelease)
+            fi
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" "${args[@]}"
+          fi

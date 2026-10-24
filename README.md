@@ -89,6 +89,22 @@ The firmware implements two different modes of operation for the RISKYMSX cartri
 * `Normal Mode`. In this mode a ROM cartridge is emulated according to the last ROM flashed using the `ROM Flashing Mode`.
 * `ROM Flashing Mode`. In this mode a ROM can be flashed manually or automatically into the cartridge by using a FAT formatted USB pen drive.
 
+### Automated releases
+
+GitHub Actions builds the firmware on pushes and pull requests to `main`. Pushing a version tag matching `firmware/User/version.h` (for example, `v4.1.0`) automatically creates a GitHub Release containing:
+
+* Firmware `.bin` and `.hex` files, plus the `CART.NXT` Nextor cartridge image
+* A ZIP of the PCB Gerber and drill files
+* The BOM CSV and interactive HTML BOM
+* `SHA256SUMS` checksums for the release files
+
+Create and push a tag to publish a release:
+
+```bash
+git tag v4.1.0
+git push origin v4.1.0
+```
+
 
 ## Building a RISKYMSX cartridge
 
@@ -678,6 +694,5 @@ Testing team:
 * Hee-Bong An
   
 Thank you very much for your support.
-
 
 
