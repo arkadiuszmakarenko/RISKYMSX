@@ -23,6 +23,21 @@ void GPIO_Config() {
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init (GPIOA, &GPIO_InitStructure);
 
+    /* PB12 -> CH217K EN# (active-low enable); PB13 -> FLAG# (active-low open-drain
+     * fault input, held by an internal pull-up). Drive PB12 high so VBUS is
+     * off until the firmware explicitly enables it. */
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init (GPIOB, &GPIO_InitStructure);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init (GPIOB, &GPIO_InitStructure);
+
+    VBUS_Disable();
+
     // GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
     // GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
     // GPIO_Init (GPIOA, &GPIO_InitStructure);
@@ -49,4 +64,19 @@ void GPIO_Config() {
     DAC_Cmd (DAC_Channel_1, ENABLE);
     DAC_DMACmd (DAC_Channel_1, ENABLE);
     DAC_SetChannel1Data (DAC_Align_12b_R, 0x00);
+}
+
+void VBUS_Enable(void) {
+    /* CH217K EN# is active-low: drive PB12 low to turn the switch on. */
+    GPIO_ResetBits (GPIOB, GPIO_Pin_12);
+}
+
+void VBUS_Disable(void) {
+    /* Drive PB12 high to turn the switch off (no reverse current when off). */
+    GPIO_SetBits (GPIOB, GPIO_Pin_12);
+}
+
+uint8_t VBUS_Fault(void) {
+    /* CH217K FLAG# (PB13) is active-low: 0 = over-current/over-temp fault. */
+    return GPIO_ReadInputDataBit (GPIOB, GPIO_Pin_13) == Bit_RESET;
 }

@@ -1,5 +1,6 @@
 {
 	"version": "1.0",
+	"hasAllParsed": true,
 	"isNormalMRSProject": true,
 	"basic": {
 		"chipInfo": {
@@ -10,7 +11,10 @@
 			"mcu": "CH32V303VCT6",
 			"description": "=============Website: http://www.wch.cn/products/CH32V307.html?\\nROM(byte): 288K, SRAM(byte): 32K, CHIP PINS: 100, GPIO PORTS: 80.\\nWCH CH32V3 series of mainstream MCUs covers the needs of a large variety of applications in the industrial,medical and consumer markets. High performance with first-class peripherals and low-power,low-voltage operation is paired with a high level of integration at accessible prices with a simple architecture and easy-to-use tools.",
 			"link": "WCH-Link",
-			"peripheral_version": "=============2.6"
+			"peripheral_version": "=============2.6",
+			"calibrateSupport": false,
+			"UIConfigSupport": false,
+			"externalFlashSupport": false
 		},
 		"linkedFolders": [],
 		"removedResources": [
@@ -151,24 +155,6 @@
 				"excludeResources": [
 					"${project}/Startup/startup_ch32v30x_D8C.S"
 				],
-				"riscvTargetProcessor": {
-					"architecture": "rv32i",
-					"multiply_extension": true,
-					"atomic_extension": true,
-					"floating_point": "none",
-					"compressed_extension": true,
-					"extra_compressed_extension": true,
-					"bit_extension": false,
-					"multiplication_subset_of_the_M_extension": false,
-					"integer_ABI": "ilp32",
-					"floating_point_ABI": "none",
-					"tuning": "default",
-					"code_model": "default",
-					"small_data_limit": 8,
-					"align": "default",
-					"save_restore": true,
-					"other_target_flags": ""
-				},
 				"optimization": {
 					"level": "size",
 					"message_length": true,
@@ -187,6 +173,7 @@
 					"code_generation_without_hardware_floating": false,
 					"use_pipelines": false,
 					"show_caret_indicating_the_column": false,
+					"calling_convention_variant": false,
 					"other_optimization_flags": ""
 				},
 				"warnings": {
@@ -386,7 +373,8 @@
 					}
 				},
 				"archiver": {
-					"archiver_flags": "-r"
+					"archiver_flags": "-r",
+					"libOutputPrefix": "lib"
 				},
 				"createFlash": {
 					"enabled": true,
@@ -394,6 +382,7 @@
 					"copy_only_section_text": false,
 					"copy_only_section_data": false,
 					"copy_only_sections": [],
+					"create_algorithm_file": false,
 					"other_flags": ""
 				},
 				"createList": {
@@ -417,9 +406,28 @@
 					"show_totals": false,
 					"other_flags": ""
 				},
+				"configVariables": [],
+				"riscvTargetProcessor": {
+					"architecture": "rv32i",
+					"multiply_extension": true,
+					"atomic_extension": true,
+					"floating_point": "none",
+					"compressed_extension": true,
+					"extra_compressed_extension": true,
+					"bit_extension": false,
+					"multiplication_subset_of_the_M_extension": false,
+					"vector_cryptography_extensions": "",
+					"integer_ABI": "ilp32",
+					"floating_point_ABI": "none",
+					"tuning": "default",
+					"code_model": "default",
+					"small_data_limit": 8,
+					"align": "default",
+					"save_restore": true,
+					"other_target_flags": ""
+				},
 				"component_toolchain": "${WCH:Toolchain:GCC12}",
-				"name": "obj",
-				"configVariables": []
+				"name": "obj"
 			},
 			{
 				"buildArtifact": {
@@ -436,24 +444,6 @@
 				"excludeResources": [
 					"${project}/Startup/startup_ch32v30x_D8.S"
 				],
-				"riscvTargetProcessor": {
-					"architecture": "rv32i",
-					"multiply_extension": true,
-					"atomic_extension": true,
-					"floating_point": "none",
-					"compressed_extension": true,
-					"extra_compressed_extension": true,
-					"bit_extension": false,
-					"multiplication_subset_of_the_M_extension": false,
-					"integer_ABI": "ilp32",
-					"floating_point_ABI": "none",
-					"tuning": "default",
-					"code_model": "default",
-					"small_data_limit": 8,
-					"align": "default",
-					"save_restore": true,
-					"other_target_flags": ""
-				},
 				"optimization": {
 					"level": "size",
 					"message_length": true,
@@ -472,6 +462,7 @@
 					"code_generation_without_hardware_floating": false,
 					"use_pipelines": false,
 					"show_caret_indicating_the_column": false,
+					"calling_convention_variant": false,
 					"other_optimization_flags": ""
 				},
 				"warnings": {
@@ -678,7 +669,8 @@
 					}
 				},
 				"archiver": {
-					"archiver_flags": "-r"
+					"archiver_flags": "-r",
+					"libOutputPrefix": "lib"
 				},
 				"createFlash": {
 					"enabled": true,
@@ -686,6 +678,7 @@
 					"copy_only_section_text": false,
 					"copy_only_section_data": false,
 					"copy_only_sections": [],
+					"create_algorithm_file": false,
 					"other_flags": ""
 				},
 				"createList": {
@@ -709,9 +702,28 @@
 					"show_totals": false,
 					"other_flags": ""
 				},
+				"configVariables": [],
+				"riscvTargetProcessor": {
+					"architecture": "rv32i",
+					"multiply_extension": true,
+					"atomic_extension": true,
+					"floating_point": "none",
+					"compressed_extension": true,
+					"extra_compressed_extension": true,
+					"bit_extension": false,
+					"multiplication_subset_of_the_M_extension": false,
+					"vector_cryptography_extensions": "",
+					"integer_ABI": "ilp32",
+					"floating_point_ABI": "none",
+					"tuning": "default",
+					"code_model": "default",
+					"small_data_limit": 8,
+					"align": "default",
+					"save_restore": true,
+					"other_target_flags": ""
+				},
 				"component_toolchain": "${WCH:Toolchain:GCC12}",
-				"name": "dbg",
-				"configVariables": []
+				"name": "dbg"
 			}
 		]
 	},
@@ -729,6 +741,8 @@
 		"disablepowerout": false,
 		"clearcodeflash": true,
 		"disablecodeprotect": true,
+		"flashType": "",
+		"asmFile_path": "",
 		"exepath": "",
 		"exearguments": ""
 	},
