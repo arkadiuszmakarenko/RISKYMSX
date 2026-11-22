@@ -9,6 +9,7 @@ The RISKYMSX cartridge by Arkadiusz Makarenko is a compact MSX flash ROM cartrid
 
 * Support for up to 256KB ROMs
 * SCC emulation
+* Nextor 3.0 USB disk support for MSX-DOS programs and files
 * Firmware programming with a WCH-LinkE; an experimental custom bootloader can update firmware from a USB stick
 * ROM Flashing:
   * No external flash programmer is needed
@@ -101,7 +102,7 @@ The firmware implements two different modes of operation for the RISKYMSX cartri
 
 GitHub Actions builds the bootloader, firmware, and Nextor cartridge on pushes
 and pull requests to `main`. Pushing a version tag matching
-`firmware/User/version.h` (currently `v4.2.0`) automatically creates a GitHub
+`firmware/User/version.h` (currently `v4.2.1`) automatically creates a GitHub
 Release containing:
 
 * Firmware `.bin` and `.hex` files, plus the `CART.NXT` Nextor cartridge image
@@ -122,8 +123,8 @@ parts.
 Create and push a tag to publish a release:
 
 ```bash
-git tag v4.2.0
-git push origin v4.2.0
+git tag v4.2.1
+git push origin v4.2.1
 ```
 
 
@@ -526,13 +527,49 @@ Once the flashing process finishes the RISKYMSX firmware will reboot the MSX com
 
 #### Nextor USB disk
 
-Copy the release or freshly built `CART.NXT` to the root of a FAT-formatted
-USB stick, enter the ROM flashing menu and press `N`. This programs the Nextor
-cartridge image, not the MCU firmware. The menu describes a separate USB disk
-for Nextor: use an MBR partition table, 512-byte sectors and FAT16 (FAT12/32
-also supported), with the stable Nextor 3.0 `NEXTOR.SYS` and `COMMAND3.COM`
-in the root. exFAT and NTFS are not supported. The build's kernel base and
-the system files must be compatible; see the [Nextor build](NextorDriver/Makefile).
+Nextor 3 turns the cartridge into a USB mass-storage disk controller for
+MSX-DOS. The cartridge exposes one USB device to Nextor, which maps its
+compatible partitions to MSX drives.
+
+**Minimum for the Nextor 3 DOS environment:**
+
+* An MSX with at least 128 KiB of mapped RAM, a RISKYMSX cartridge with the
+  current firmware, and the Nextor cartridge image `CART.NXT`.
+* A USB mass-storage device with 512-byte sectors, an MBR partition table
+  (not GPT), and a FAT16 or FAT12 partition. FAT16 is recommended. Nextor
+  does **not** support FAT32, exFAT, or NTFS.
+* Stable Nextor 3.0 `NEXTOR.SYS` and `COMMAND3.COM` in the root of the
+  partition used to boot.
+
+Without 128 KiB of mapped RAM, Nextor falls back to MSX-DOS 1 mode; that
+mode requires a FAT12 partition with at most three sectors per FAT and, for
+the DOS prompt, at least 64 KiB of RAM plus the MSX-DOS 1 system files. See the
+[Nextor user manual](https://konamiman.github.io/Nextor/Nextor_3.0_User_Manual.html)
+for details.
+
+**Enable and boot Nextor:**
+
+1. Get `CART.NXT` from a [RISKYMSX release](https://github.com/arkadiuszmakarenko/RISKYMSX/releases)
+   or run `make nextor` at the repository root.
+2. Copy `CART.NXT` to the root of a FAT-formatted USB stick for flashing.
+   Enter ROM flashing mode by holding `GRAPH` at startup, and press `N` in
+   the file menu. This replaces the currently flashed cartridge ROM with
+   Nextor; it does not replace the MCU firmware.
+3. Prepare a separate Nextor USB disk as described above. Download
+   [Nextor 3.0 tools.zip](https://github.com/Konamiman/Nextor/releases/tag/tools-disk-image-and-zip-for-Nextor-3.0),
+   extract it, and copy `NEXTOR.SYS` and `COMMAND3.COM` to the boot
+   partition's root. The `TOOLS` and `HELP` directories are optional but
+   useful; copy them as well if desired.
+4. Insert the Nextor disk and restart the MSX normally, without holding
+   `GRAPH`. The flashed Nextor kernel loads the system files from the disk.
+
+Nextor maps active FAT12/16 partitions at boot; if none is active, it uses the
+first suitable partition. Partitioning or formatting erases data, so back up
+the USB device first. For partitioning and other commands, see the
+[Nextor getting started guide](https://konamiman.github.io/Nextor/Nextor_3.0_Getting_Started_Guide.html)
+and [Nextor downloads](https://konamiman.github.io/Nextor/releases/). The
+kernel and system files must be compatible; this build uses stable Nextor 3.0
+([Nextor build](NextorDriver/Makefile)).
 
 ## General troubleshooting
 

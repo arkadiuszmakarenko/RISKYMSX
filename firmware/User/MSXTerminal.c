@@ -165,11 +165,11 @@ static void NextorFlashFromUsb (void) {
     Line (" The Nextor disk must be");
     Line (" a separate USB stick:");
     Line (" - MBR, not GPT");
-    Line (" - FAT16 (FAT12/32 ok)");
+    Line (" - FAT12 or FAT16");
     Line (" - 512-byte sectors");
     Line (" - no exFAT / NTFS");
     Line (" - NEXTOR.SYS and");
-    Line ("   COMMAND2.COM in root");
+    Line ("   COMMAND3.COM in root");
     waitBufferEmpty (&scb);
     Delay_Ms (5000);
 
