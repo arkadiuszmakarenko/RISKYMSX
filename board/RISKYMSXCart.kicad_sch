@@ -13922,7 +13922,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "CH32V307VCT6"
+		(property "Value" "CH32V303VCT6"
 			(at 171.1041 204.47 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13944,7 +13944,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://datasheet.lcsc.com/lcsc/2201121900_WCH-Jiangsu-Qin-Heng-CH32V307VCT6_C2943979.pdf"
+		(property "Datasheet" "https://www.wch-ic.com/downloads/CH32V307DS0_PDF.html"
 			(at 170.18 52.07 0)
 			(hide yes)
 			(show_name no)

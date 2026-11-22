@@ -9,7 +9,7 @@ The RISKYMSX cartridge by Arkadiusz Makarenko is a compact MSX flash ROM cartrid
 
 * Support for up to 256KB ROMs
 * SCC emulation
-* Firmware updates using a USB-A cable (or alternatively a WCH-LinkE programmer)
+* Firmware programming with a WCH-LinkE; an experimental custom bootloader can update firmware from a USB stick
 * ROM Flashing:
   * No external flash programmer is needed
   * A ROM can be flashed in-system using a MSX computer and a FAT-formatted USB pen drive
@@ -22,9 +22,9 @@ The RISKYMSX cartridge by Arkadiusz Makarenko is a compact MSX flash ROM cartrid
   * Standard 16KB ROMs
   * Standard 32KB ROMs
   * Standard 48KB /64KB ROMs
-  * KONAMI without SSC
-  * KONAMI with SSC (EN - SCC emulation enabled)
-  * KONAMI with SSC (DIS - SCC emulation disabled)
+  * KONAMI without SCC
+  * KONAMI with SCC (EN - SCC emulation enabled)
+  * KONAMI with SCC (DIS - SCC emulation disabled)
   * ASCII 8K
   * ASCII 16K
   * Neo 8k
@@ -36,10 +36,11 @@ The RISKYMSX cartridge by Arkadiusz Makarenko is a compact MSX flash ROM cartrid
 The RISKYMSX cartridge is made up of a 4-layer PCB with a reduced set of SMD components and through-hole connectors:
 * A WCH [CH32V303VCT6](https://www.wch-ic.com/products/CH32V303.html) MCU (or alternatively a [CH32V307VCT6](https://www.wch-ic.com/products/CH32V307.html))
 * Two LEDs, one to indicate power on state, and one lit during `ROM Flashing Mode`
+* On rev 2.2, a CH217K current-limited switch controls power to the USB host port
 * A [LM1117](https://www.ti.com/lit/ds/symlink/lm1117.pdf) voltage regulator to provide +3V3 to the MCU from the +5V rail of the MSX cartridge slot
 * A [MCP6001](https://ww1.microchip.com/downloads/aemDocuments/documents/MSLD/ProductDocuments/DataSheets/MCP6001-1R-1U-2-4-1-MHz-Low-Power-Op-Amp-DS20001733L.pdf) operational amplifier to enhance the SCC audio signal fed into the MSX cartridge SOUNDIN pin
 * Three headers:
-  * B0: open by default, closed only while programming the MCU using the `WCHISPTool_CMD` tool
+  * B0: open for normal operation; closed to select system boot, including the optional custom bootloader
   * DAT/CLK: unconnected by default, used to program the MCU using the [`WCH-LinkE`](https://www.wch-ic.com/products/WCH-Link.html) programmer via SWDIO/SWCLK
   * RX/TX: unconnected by default, serial debug console
 * One USB Type-A female connector
@@ -49,19 +50,26 @@ The RISKYMSX cartridge is made up of a 4-layer PCB with a reduced set of SMD com
 
 There are several hardware revisions of the cartridge. The main ones are listed here in reverse chronological order.
 
-#### Rev 2.1 (current)
+#### Rev 2.2 (current)
+
+Rev 2.2 adds a CH217K switch to the USB host port. Its active-low enable is
+controlled by PB12 and its fault output is connected to PB13. The USB port is
+intended to power a USB drive, not to power the cartridge from a PC. Use
+firmware that supports this switch.
+
+The [schematic and PCB](board/), [rev 2.2 Gerbers](board/gerbers/RISKYMSXv22.zip),
+and [schematic BOM](RISKYMSXCart.csv) are in this repository. The BOM requires
+verification before ordering or assembly.
+
+#### Rev 2.1 (older)
 
 This version introduces the following changes:
 * the flash button is removed, as the flashing interface can be accessed by pressing the GRAPH key on the MSX keyboard during boot
 * unnecessary leds are removed, leaving just the Flash and Power leds
 * the audio amplifier circuit is enhanced with a low pass filter 
 
-See the [Bill Of Materials (BoM)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/arkadiuszmakarenko/RISKYMSX/main/board/bom/ibom.html) generated from the KiCad files for information about the specific components used.
-
-Have a look at the [schematic and PCB](https://kicanvas.org/?github=https%3A%2F%2Fgithub.com%2Farkadiuszmakarenko%2FRISKYMSX%2Ftree%2Fmain%2Fboard) using [KiCanvas](https://kicanvas.org).
-
 [<img src="images/RISKYMSXCart-Rev2.1-front-render.png" width="512"/>](images/RISKYMSXCart-Rev2.1-front-render.png)
-[<img src="images/RISKYMSXCart-Rev2.1-back-render.png" width="512"/>](images/images/RISKYMSXCart-Rev2.1-back-render.png)
+[<img src="images/RISKYMSXCart-Rev2.1-back-render.png" width="512"/>](images/RISKYMSXCart-Rev2.1-back-render.png)
 
 #### Rev 2 (obsolete)
 
@@ -91,18 +99,21 @@ The firmware implements two different modes of operation for the RISKYMSX cartri
 
 ### Automated releases
 
-GitHub Actions builds the firmware on pushes and pull requests to `main`. Pushing a version tag matching `firmware/User/version.h` (for example, `v4.1.0`) automatically creates a GitHub Release containing:
+GitHub Actions builds the firmware on pushes and pull requests to `main`. Pushing a version tag matching `firmware/User/version.h` (currently `v4.2.0`) automatically creates a GitHub Release containing:
 
 * Firmware `.bin` and `.hex` files, plus the `CART.NXT` Nextor cartridge image
 * A ZIP of the PCB Gerber and drill files
-* The BOM CSV and interactive HTML BOM
 * `SHA256SUMS` checksums for the release files
+
+The BOM is not included in new release packages. Previously published releases
+may contain an outdated BOM. Verify the current schematic BOM before ordering
+parts.
 
 Create and push a tag to publish a release:
 
 ```bash
-git tag v4.1.0
-git push origin v4.1.0
+git tag v4.2.0
+git push origin v4.2.0
 ```
 
 
@@ -116,7 +127,8 @@ As you probably saw on the Bill Of Materials, there are quite small SMD componen
 
 ### PCB
 
-The PCB can be fabricated by your favorite PCB manufacturer from the [supplied gerber files](https://github.com/arkadiuszmakarenko/RISKYMSX/blob/main/RiskyMSXv21PCB.zip).
+The PCB can be fabricated from the [rev 2.2 Gerber archive](board/gerbers/RISKYMSXv22.zip).
+The [rev 2.1 archive](RiskyMSXv21PCB.zip) is retained for older boards.
 
 ### Suggested tools
 
@@ -131,63 +143,41 @@ These are example tools used during the manual building of the RISKYMSX cartridg
 * solder (0.5mm, for hobby projects you may use 60% Sn / 40% Pb Flux 2% at your own risk)
 * desoldering wick (2.5mm is fine), for correcting mistakes if you are human)
 
-### Component shopping list
+### Components and assembly
 
-> [!WARNING]
-> Aliexpress links may not work, as sellers come and go.
+The [CSV BOM](RISKYMSXCart.csv) is generated from the current schematic, but
+is not a verified shopping list or assembly guide. Check component values,
+ratings, footprints, orientation, and population before ordering or assembly.
+U2 is `CH32V303VCT6`; the schematic retains the existing CH32V307 library
+symbol, so verify its pin assignments against the CH32V303 datasheet.
+The [interactive BOM](board/bom/ibom.html) shows the current PCB and its
+component positions. It is also not a verified shopping list.
 
-| **ref**                                   | **component**  | **req_pcs** | **item_description**                                                                                                             | **item_option**      | **pcs_per_item** | **req_items** | **link**                                                                                                       |
-| ----------------------------------------- | -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
-| C2, C4, C5, C6, C7, C8, C9, C10, C11, C19 | 0603 100nF     | 10          | 100pcs 0603 SMD Chip Multilayer Ceramic Capacitor 0.5pF - 22uF 10pF 22pF 100pF 1nF 10nF 15nF 100nF 0.1uF 1uF 2.2uF 4.7uF 10uF    | 0603 100nF 50V       | 100              | 1             | [aliexpress](https://aliexpress.com/item/32966526545.html)                   |
-| C18                                       | 0603 1uF       | 1           | 100pcs 0603 SMD Chip Multilayer Ceramic Capacitor 0.5pF - 22uF 10pF 22pF 100pF 1nF 10nF 15nF 100nF 0.1uF 1uF 2.2uF 4.7uF 10uF    | 0603 1uF 25V         | 100              | 1             | [aliexpress](https://aliexpress.com/item/32966526545.html)                   |
-| C12, C20                                  | 0603 4.7uF     | 2           | 100pcs 0603 SMD Chip Multilayer Ceramic Capacitor 0.5pF - 22uF 10pF 22pF 100pF 1nF 10nF 15nF 100nF 0.1uF 1uF 2.2uF 4.7uF 10uF    | 0603 4.7uF 10V       | 100              | 1             | [aliexpress](https://aliexpress.com/item/32966526545.html)                   |
-| C3                                        | 0603 10uF      | 1           | 100pcs 0603 SMD Chip Multilayer Ceramic Capacitor 0.5pF - 22uF 10pF 22pF 100pF 1nF 10nF 15nF 100nF 0.1uF 1uF 2.2uF 4.7uF 10uF    | 0603 10uF 10V        | 100              | 1             | [aliexpress](https://aliexpress.com/item/32966526545.html)                   |
-| C1                                        | 1206 100nF     | 1           | 100pcs 1206 SMD Chip Multilayer Ceramic Capacitor 0.5pF - 100uF 10pF 100pF 1nF 10nF 15nF 100nF 0.1uF 1uF 2.2uF 4.7uF 10uF 47uF   | 1206 100nF 50V       | 100              | 1             | [aliexpress](https://aliexpress.com/item/32966490820.html)                   |
-| C13                                       | 1206 1uF       | 1           | 100pcs 1206 SMD Chip Multilayer Ceramic Capacitor 0.5pF - 100uF 10pF 100pF 1nF 10nF 15nF 100nF 0.1uF 1uF 2.2uF 4.7uF 10uF 47uF   | 1206 1uF 25V         | 100              | 1             | [aliexpress](https://aliexpress.com/item/32966490820.html)                   |
-| R1, R2, R4, R9, R10                       | 0603 10K       | 5           | 100PCS 0603 1% SMD resistor 0R ~ 10M 1/10W 0 1 10 100 150 220 330 470 ohm 1K 2.2K 10K 100K 1M 0R 1R 10R 100R 150R 220R 330R 470R | 10K                  | 100              | 1             | [aliexpress](https://aliexpress.com/item/1005005677654015.html)         |
-| R3, R5                                    | 0603 220       | 2           | 100PCS 0603 1% SMD resistor 0R ~ 10M 1/10W 0 1 10 100 150 220 330 470 ohm 1K 2.2K 10K 100K 1M 0R 1R 10R 100R 150R 220R 330R 470R | 220R                 | 100              | 1             | [aliexpress](https://aliexpress.com/item/1005005677654015.html)         |
-| D1                                        | 0805 green LED | 1           | 5 colors x20pcs =100pcs SMD 0805 led kit Red/Green/Blue/Yellow/White LED Light Diode Free Shipping! KIT                          | n/a                  | 20               | 1             | [aliexpress](https://aliexpress.com/item/32288211535.html)                   |
-| D5                                        | 0805 red LED   | 1           | 5 colors x20pcs =100pcs SMD 0805 led kit Red/Green/Blue/Yellow/White LED Light Diode Free Shipping! KIT                          | n/a                  | 20               | 0             |                                                                                                                |
-| U1                                        | CH32V307VCT6   | 1           | 1-50Pcs New CH32V303VCT6 CH32V303 VCT6 CH32V LQFP-100 Microcontroller IC Chip In Stock Wholesale                                 | 2Pcs CH32V303VCT6    | 2                | 1             | [aliexpress](https://aliexpress.com/item/1005006687185523.html)         |
-| U2                                        | MCP6001-OT     | 1           | 20PCS 100% New MCP6001T-I/OT SOT23-5 MCP6001T-I SOT23 MCP6001 SMD MCP6001T Chipset                                               | n/a                  | 20               | 1             | [aliexpress](https://aliexpress.com/item/1005006809254782.html)         |
-| F2                                        | 3216 0.5A      | 1           | 3216 1206 0.05A 0.1A 0.12A 0.16A 0.2A 0.25A 0.5A 0.75A 1.1A 2A SMD Resettable Fuse PPTC PolySwitch Self-Recovery Fuse            | 500MA, 1206, 20 Pcs  | 20               | 1             | [aliexpress](https://aliexpress.com/item/1005004273302126.html) |
-| IC8                                       | LM1117MPX-3.3  | 1           | 5PCs LM1117MPX-1.8 N12A LM1117MPX-2.5 N13A LM1117MPX-3.3 N05A/B LM1117MPX-5.0 N06A LM1117MPX-AJ N03A SOT-223 Linear Regulator    | LM1117MPX-3.3        | 5                | 1             | [aliexpress](https://aliexpress.com/item/1005007393149096.html)         |
-| J1, J2, J8                                | Conn_01x02     | 1           | 10pcs 40 Pin 1x40 Single Row Male and Female 2.54 Breakable Pin Header PCB JST Connector Strip for arduino DIY Kit               | Male Color 2pcs each | 10               | 1             | [aliexpress](https://aliexpress.com/item/1005007324368709.html) |
-| J7                                        | USB_1          | 1           | Hot Sale USB Type A Standard Port Female Solder Jacks Connector PCB Socket Type B 90 Degree Horizontal Straight Insertion Patch  | 10PCS USB-02         | 10               | 1             | [aliexpress](https://aliexpress.com/item/1005005865561469.html) |
+To regenerate the CSV with KiCad 10 from the repository root:
 
-Beware of fake chips and components:
-* If you receive MCP6001 op-amps marked as SA10, they are probably MCP601 op-amps.
-* MCP6001 op-amps marked as AAYS should be fine.
-* LM1117MPX-3.3 voltage regulators marked as N05A should be fine.
+```sh
+kicad-cli sch export bom \
+  --fields 'Reference,Value,Footprint,QUANTITY,DNP' \
+  --labels 'Reference,Value,Footprint,Qty,DNP' \
+  --group-by 'Value,Footprint,DNP' --ref-range-delimiter '' \
+  -o RISKYMSXCart.csv board/RISKYMSXCart.kicad_sch
+```
 
+The `DNP` column records KiCad's do-not-populate status. The list includes the
+MSX edge connector footprint, which is part of the PCB rather than a separate
+component. KiCad's PCB DRC reports footprint-library warnings; review those
+before fabrication.
 
-### Assembling the hardware
+To regenerate the interactive BOM, install the KiCad 10-compatible
+[InteractiveHtmlBom](https://github.com/openscopeproject/InteractiveHtmlBom)
+plugin and run it from PCB Editor, or use its command-line tool:
 
-The central piece of the cartridge is the CH32V30xVCT6 MCU which is at the same time the most difficult element to solder.
+```sh
+generate_interactive_bom --no-browser --dest-dir bom board/RISKYMSXCart.kicad_pcb
+```
 
-You can solder components in the following suggested order, or do as you feel comfortable:
-* U1 CH32V30xVCT6
-* D1,D5 leds
-* F2 fuse
-* R3, R5 led resistors
-* R1 boot0 pull-down resistor
-* IC8 LM1117MPX-3.3
-* C3 10uF capacitor
-* C7 and C1 100nF capacitors
-* C13 1uF capacitor
-* C4, C2, C6, C8, C5, C11 and C10 100nF capacitors
-* R4 and C9 do not need to be populated (confirmation needed)
-* U2 MCP6001-OT op-amp
-* C12 and C20 capacitors
-* C19 capacitor
-* C18 capacitor
-* R10, R9 and R2 resistors
-* C14 and C17 capacitors
-
-> [!WARNING]
-> C5 is not marked on the PCB, it is the capacitor to the right of the C11 marking (C11 mark is closer to C5 than to C11)
->
-> C11 is the capacitor to the right of the C5 capacitor
+The interactive BOM is generated from PCB values; synchronize the PCB with the
+schematic and check for mismatches before regenerating it.
 
 ### Building the firmware on Linux
 
@@ -312,17 +302,31 @@ The project file is under the `firmware` directory on the cloned github reposito
 
 #### Generating the firmware file from the command line
 
-As an alternative to the MounRiverStudio IDE, the firmware can be built and flashed directly from the command line using GNU `make`. The build flags are taken straight from the MounRiver-generated `obj/makefile`, so the resulting binary is identical.
+As an alternative to the MounRiverStudio IDE, the firmware can be built and flashed directly from the command line using GNU `make`.
 
 Requirements:
 
 * GNU `make`
 * A RISC-V toolchain. The Makefile auto-detects, in order:
-  1. The bundled `MRS_Toolchain_Linux_x64_V210/RISC-V Embedded GCC12` (shipped in the repo)
+  1. A locally installed `MRS_Toolchain_Linux_x64_V210/RISC-V Embedded GCC12` at the repository root (not shipped in the repo)
   2. `riscv-wch-elf-gcc` on `PATH` (the same compiler MounRiver uses)
   3. `riscv-none-embed-gcc` on `PATH` (xPack)
   4. `riscv64-unknown-elf-gcc` on `PATH` (system package)
-* For flashing: [`minichlink`](https://github.com/cnlohr/ch32fun) (used by the `flash` target) and/or `openocd` with WCH-Link support (used by the `flash-openocd` target)
+* For `make flash`: OpenOCD with WCH-Link support (the Makefile uses the WCH version from the local MounRiver toolchain when available)
+* For rebuilding `CART.NXT`: the .NET runtime needed by the vendored N80 assembler
+
+The default build also attempts to build Nextor and copy it to `build/CART.NXT`.
+It prints a warning rather than failing if the Nextor build fails; check the
+output and do not assume an existing `CART.NXT` is fresh.
+
+#### Building all images from the repository root
+
+Run `make` from the repository root to build the bootloader, firmware, and
+Nextor cartridge. The output files are placed in the root:
+`Bootloader.bin`, `RISKYMSXCART.bin`, `RISKYMSXCART.hex`, and `CART.NXT`.
+Individual builds are available with `make bootloader`, `make firmware`, or
+`make nextor`; `make clean` removes the local firmware and bootloader outputs
+and build directories. It leaves the tracked `CART.NXT` release image in place.
 
 Build the firmware:
 
@@ -333,16 +337,10 @@ make size       # show program/data sizes
 make clean      # remove build artifacts
 ```
 
-Build and program the chip in a single step using `minichlink` and a WCH-LinkE:
+Build and program the chip with OpenOCD and a WCH-LinkE:
 
 ```bash
 make flash
-```
-
-Build and program the chip using `openocd` and `wch-riscv.cfg` at the repo root:
-
-```bash
-make flash-openocd
 ```
 
 You can override the toolchain explicitly, for example to force a clean build with the xPack toolchain:
@@ -354,188 +352,67 @@ make TOOLCHAIN_DIR=/opt/xpack PREFIX=riscv-none-embed- clean all
 
 #### Programming the firmware
 
-The firmware can be programmed into the RISKYMSX cartridge using the MounRiverStudio IDE and a WCH-LinkE programmer, or using the WCHISPTool_CMD and a USB Type A to Type A cable.
-
-> [!NOTE]
-> It has been observed that the WCH-LinkE programmer method is more reliable than the WCHISPTool_CMD method when flashing a chip for the first time.
-It is recommended to use WCH-LinkE for initial firmware programming,  there is a lot of reports that programming initial firmware over USB is very unreliable. Upgrading existing firmware using this method works well.
-
-Choose the option that better suits you.
-
-##### Programming the firmware using the WCH-LinkE programmer
-
-Using the WCH-LinkE allows to program a .HEX firmware file to the CH32V30xVCT6.
-
-1. Connect the WCH-LinkE programmer and RISKYMSX cartridge
-
-  * Make sure the RISKYMSX cartridge is _disconnected_ from the MSX.
-
-  * Using two dupont wires, connect the WCH-LinkE programmer to the RISKYMSX cartridge.
-
-    You need to perform specifically the following connections:
-    * the SWCLK/TCK pin of the WCH-LinkE programmer to the CLK pin of the J8 header of the RISKYMSX cartridge
-    * the SWDIO/TMS pin of the WCH-LinkE programmer to the DAT pin of the J8 header of the RISKYMSX cartridge
-
-[<img src="images/wch-linke-connection-to-riskymsx-cartridge.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge.png)
-
-* Connect the USB port of the RISKYMSX cartridge to a free USB port of the computer running the MounRiverStudio software.
-
-You will need a USB Type A end on the RISKYMSX cartridge and the appropriate USB end on your computer.
-
-This USB connection will be used just to power the CH32V30xVCT6.
-After the connection is made, the RISKYMSX cartridge should lit the power led PWR on.
-
-[<img src="images/wch-linke-connection-to-riskymsx-cartridge-2.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge-2.png)
-
-* Connect the WCH-LinkE programmer to the computer running the MounRiverStudio IDE on a free USB Type A port.
-
-Once connected, the WCH-LinkE should lit the red led on and the blue led off to indicate operation in RISC-V mode.
-
-[<img src="images/wch-linke-connection-to-riskymsx-cartridge-3.png" width="768"/>](images/wch-linke-connection-to-riskymsx-cartridge-3.png)
-
-If the WCH-LinkE shows any other led combination, you should follow the [WCH-LinkE manual](https://www.wch-ic.com/downloads/WCH-LinkUserManual_PDF.html) to put your WCH-LinkE in RISC-V mode.
-
-One simple way to switch to RISC-V mode is to press and hold the ModeS button while connecting the WCH-LinkE programmer.
-Note that on some WCH-LinkE programmers the plastic enclosure does not allow access to the ModeS button and you will need to either remove the enclosure to access the ModeS button or use the MounRiverStudio software to switch to RISC-V mode by software.
-
-[<img src="images/wch-linke-red-led-riscv-mode.png" width="768"/>](images/wch-linke-red-led-riscv-mode.png)
-
-2. Launch the MounRiverStudio IDE and open the Download preferences to specify the memory assignment settings and location of the target file
-
-`Flash | Download Configuration`
-
-`Download Settings`
-
-`MCU Memory Assign: ` **`288K ROM + 32K RAM`**
-
-`Target File : `**`/path/to/your/RISKYMSX/firmware/obj/RISKYMSXCART.hex`**
-
-[<img src="images/mounriverstudio-ide-download-settings-and-memory-assign.png" width="768"/>](images/mounriverstudio-ide-download-settings-and-memory-assign.png)
-
-3. Proceed with the firmware download to the RISKYMSX cartridge
-
-`Flash | Download`
-
-[<img src="images/mounriverstudio-ide-download.png" width="768"/>](images/mounriverstudio-ide-download.png)
-
-If you receive an error, try power cycling the RISKYMSX cartridge by disconnecting and reconnecting the USB cable from the RISKYMSX cartridge, and then retry the operation.
-
-##### Programming the firmware using the WCHISPTool_CMD tool
-
-Using the WCH-LinkE allows to program a .BIN firmware file to the CH32V30xVCT6.
-
-1. If you haven't done it yet, download and uncompress the WCHISPTool_CMD archive
-
-* Download the [WCHISPTool_CMD](https://www.wch-ic.com/downloads/WCHISPTool_CMD_ZIP.html)
-
-* Uncompress the `WCHISPTool_CMD.ZIP` archive
-
-```bash
-unzip WCHISPTool_CMD.ZIP
-```
-
-Once uncompressed all package files are under the `WCHISPTool_CMD/` directory.
-
-* Make sure the `WCHISPTool_CMD` tool is executable
-
-```bash
-chmod u+x WCHISPTool_CMD/Linux/bin/x64/WCHISPTool_CMD
-```
-
-This will make the tool binary for x64 processors executable by the current user.
-
-2. Build the required Linux kernel module
-
-The mentioned Linux kernel mode is used to talk to the ISP interface of the CH32V30xVCT6 chip.
-
-You will need to build the kernel module everytime you upgrade your kernel, otherwise the kernel module will not load because of the mismatch between kernel and module.
-
-```bash
-cd WCHISPTool_CMD/Linux/driver/
-make clean
-make
-```
-
-Note that you are not required to run `make install` to install the kernel module if you just want to use the tool sparingly.
-
-3. Load the compiled kernel module into the running kernel
-
-```bash
-sudo insmod ch37x.ko
-```
-
-4. Close the B0 header pins using a 2.54" jumper.
-
-By closing the B0 header, the CH32V30xVCT6 MCU will enter ISP programming mode once powered on.
-
-5. Connect the RISKYMSX cartridge to your computer using a USB cable.
-
-The required USB cable needs a Type A male termination on one side to connect to the RISKYMSX cartridge, and another USB male connector suitable for your computer on the other end.
-If your computer has USB Type A ports, a USB Type A to USB Type A cable should be fine.
-
-[<img src="images/isp-riskymsx-connection-for-programming.png" width="768"/>](images/isp-riskymsx-connection-for-programming.png)
-
-6. Check that the device node for the CH32V30xVCT6 in ISP programming node appears on your system
-
-```bash
-ls -la /dev/ch3*
-```
-```
-crw------- 1 root root 180, 2 Jun  3 15:58 /dev/ch37x2
-```
-
-6. Run the `WCHISPTool_CMD` tool to program the RISKYMSX cartridge firmware
-
-The following command assumes that both the `WCHISPTool_CMD` and `RISKYMSX` github repository directories are available under the current working directory, and that the RISKYMSX firmware binary file has been copied to the current directory under the name `RISKYMSXCART.bin`.
-
-```bash
-sudo WCHISPTool_CMD/Linux/bin/x64/WCHISPTool_CMD -p /dev/ch37x2 -f RISKYMSXCART.bin -o program -c RISKYMSX/prog/CONFIG.INI -r 1
-```
-
-where:
-* `/dev/ch37x2` is the device node for your CH32V30x as it appears on your system
-* `RISKYMSXCART.bin` is the firmware binary file provided in the github repository (or the one built by you if you rebuilt the project)
-* `RISKYMSX/prog/CONFIG.INI` is the configuration file for the `WCHISPTool_CMD` also provided in the github repository
-
-When the programming completes successfully you will see an output similar to this one:
-
-```
-=====ISP_Command_Tool=====
-
-TOOL VERSION:  V3.70
-
-p:/dev/ch37x2
-b:0
-v:0
-c:RISKYMSX/prog/CONFIG.INI
-o:0
-f:RISKYMSXCART.bin
-r:1
-
-{"Device":"/dev/ch37x2","Status":"Ready"}
-{"Device":"/dev/ch37x2", "Status":"Programming", "Progress":100%} 
-{"Device":/dev/ch37x2", "Status":"Finished", "Code":0,"Message":"Succeed"}
-```
-
-### Building the firmware on Windows
-
-TBE
-
-#### Programming the firmware
-
-You need WCHISPTool from https://wch-ic.com/ website.
-
-##### USB A - USB A Cable or Serial adapter
- * Close jumper B0.
- * Connect RISKY MSX to PC using USB A to USB A cable or serial.
- * For USB A Cable Dnld Port should change to USB.
- * For serial select your serial device COM
- * Select Chip Series - CH32V30x
- * Chip Model : CH32V303VCT6
- * Select Object File1 and pick up firmware .bin.
- * Under Chip Config select Chip Memory Allocation RAMX 32KB + ROM 288KB
- * Click Deprotect
- * Click Download
+Firmware programming changes the MCU application, whereas ROM flashing in the
+cartridge menu only selects an MSX ROM. Use a WCH-LinkE for initial programming
+and recovery. The optional custom bootloader offers a different, experimental
+way to update the application from an MSX and USB stick after installation.
+
+> [!WARNING]
+> On rev 2.2 the CH217K switches the USB host VBUS. A USB cable connected to
+> a PC is not a suitable source of cartridge power. The old USB ISP
+> cable-only instructions do not apply to this revision. USB ISP with an
+> independently powered board has not been validated here.
+>
+> Use a properly powered target and a common ground with the WCH-Link. A
+> specific standalone power connection for rev 2.2 has not yet been
+> validated; consult the schematic and verify the supply, voltage and
+> connections before programming. Do not bypass the switch or connect
+> multiple power sources based on the old instructions.
+
+##### Programming the application with WCH-LinkE
+
+1. With power off, connect WCH-LinkE SWCLK/TCK to J8 CLK, SWDIO/TMS to
+   J8 DAT, and the programmer ground to target ground. Follow the
+   [WCH-Link manual](https://www.wch-ic.com/downloads/WCH-LinkUserManual_PDF.html)
+   for the programmer's target-voltage requirements and RISC-V mode.
+2. Provide the target with a verified supply, connect the WCH-LinkE to the PC
+   and confirm the cartridge is powered. The target power arrangement must be
+   verified for the board revision; it is not supplied by the USB host port.
+3. Use `make flash` in `firmware/`, or select the built
+   `firmware/obj/RISKYMSXCART.hex` in MounRiverStudio under
+   `Flash | Download Configuration` and use `Flash | Download`. The
+   command-line build produces `firmware/build/RISKYMSXCART.hex` instead.
+4. Verify the operation with the programmer. Power down before disconnecting
+   wires or inserting or removing the cartridge. Keep B0 open for normal boot.
+
+##### Updating with the custom bootloader (experimental)
+
+The [custom bootloader](bootloader/README.md) is not the CH32V303 factory ISP
+bootloader. It occupies the 28 KiB system boot flash and must first be
+installed using a WCH-Link and a compatible `minichlink`; it is not installed
+by programming the normal application firmware.
+
+> [!CAUTION]
+> Replacing the factory bootloader is untested and hardware-dependent. It
+> removes factory USB/USART ISP while installed, and a failed write or unusable
+> backup can prevent recovery. Back up the system boot region first, keep the
+> WCH-Link available, and read the complete
+> [installation and recovery instructions](bootloader/README.md) before
+> proceeding. Flash programming and MSX bus timing need hardware validation.
+
+After the custom bootloader has been installed and validated:
+
+1. Copy the application binary to the root of a FAT-formatted USB stick as
+   `RISKYMSXCART.BIN`. The bootloader also checks `FIRMWARE.BIN` and
+   `UPDATE.BIN`, in that order. Release binaries with a version in their name
+   must be renamed.
+2. With the MSX powered off, close B0, insert the cartridge and USB stick, and
+   power on the MSX. B0 selects system boot; the cartridge is powered by the
+   MSX, not by the USB stick.
+3. Follow the MSX screen: press Return to program or Esc to cancel. Wait for
+   programming and read-back verification to finish.
+4. Power off the MSX, open B0, then power on again to run the application.
+   Never remove or insert the cartridge while the MSX is powered on.
 
 
 ## Cartridge Operation
@@ -545,7 +422,9 @@ The RISKYMSX cartridge can operate in two different modes once programmed with t
 Make sure the MSX computer is powered off before inserting or removing the RISKYMSX cartridge or any other cartridge.
 
 > [!WARNING]
-> All cartridge headers (B0, DAT/CLK and RX/TX) must be unconnected for cartridge operation when inserted into a MSX computer.
+> Leave DAT/CLK and RX/TX unconnected for ordinary cartridge operation. B0
+> must be open for normal boot; closing it selects system boot for the
+> optional custom bootloader.
 
 
 ### Normal Mode
@@ -584,9 +463,10 @@ The RISKYMSX firmware will automatically flash the first file found on the root 
  |   :-----------:      | :--------------: | 
  | 16KB ROM             | cart.r16         | 
  | 32KB ROM             | cart.r32         | 
- | KONAMI without SSC   | cart.ko4         | 
- | KONAMI with SSC(EN)  | cart.ko5         | 
- | KONAMI with SSC(DIS) | cart.kd5         | 
+ | 48KB / 64KB ROM      | cart.r48         |
+ | KONAMI without SCC   | cart.ko4         |
+ | KONAMI with SCC(EN)  | cart.ko5         |
+ | KONAMI with SCC(DIS) | cart.kd5         |
  | ASCII8k              | cart.a8k         | 
  | ASCII16k             | cart.a16         | 
  | NEO16                | cart.n16         | 
@@ -613,7 +493,8 @@ Use the following keys to interact with the file menu screen:
 * `Return`: select a file for flashing
 * `Esc`: go to the previous screen, or reload the file list on the root directory
 * `1`: show the current flashed ROM file and mapper type, and optionally change the mapper type
-* `Backspace`: go to the previous directory level on the file manu
+* `N`: flash `CART.NXT` from the USB root as a Nextor cartridge
+* `Backspace`: go to the previous directory level on the file menu
 
 Useful tips:
 * The bottom of the file menu screen shows the keys that are available to use at any moment
@@ -633,12 +514,24 @@ Select the correct mapper type for the selected ROM file and press `Return` to s
 
 Once the flashing process finishes the RISKYMSX firmware will reboot the MSX computer and the flashed ROM will load.
 
+#### Nextor USB disk
 
-## General troubleshooting.
+Copy the release or freshly built `CART.NXT` to the root of a FAT-formatted
+USB stick, enter the ROM flashing menu and press `N`. This programs the Nextor
+cartridge image, not the MCU firmware. The menu describes a separate USB disk
+for Nextor: use an MBR partition table, 512-byte sectors and FAT16 (FAT12/32
+also supported), with the stable Nextor 3.0 `NEXTOR.SYS` and `COMMAND3.COM`
+in the root. exFAT and NTFS are not supported. The build's kernel base and
+the system files must be compatible; see the [Nextor build](NextorDriver/Makefile).
 
-If no LEDS are on during power up, You have issues with power lines or shorts.
-If during power up and button pressed no LEDs are flashing your MPU doesn't start at all.
-If you can download ROM to cart but MSX doesn't load data from cart then you have issues wih soldering of ADDRESS, DATA or BUS lines.
+## General troubleshooting
+
+* If no LEDs light at power-up, check the power rails and inspect for shorts.
+* On rev 2.2, a rapidly flashing activity LED can indicate a CH217K
+  over-current or over-temperature fault. The firmware disables USB power and
+  latches the fault until reset. Remove the cause before resetting.
+* If a ROM can be programmed but the MSX cannot load it, inspect the address,
+  data and bus connections and their solder joints.
 
 
 ## Compatibility
@@ -694,5 +587,3 @@ Testing team:
 * Hee-Bong An
   
 Thank you very much for your support.
-
-

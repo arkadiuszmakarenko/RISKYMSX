@@ -2344,7 +2344,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://datasheet.lcsc.com/lcsc/2201121900_WCH-Jiangsu-Qin-Heng-CH32V307VCT6_C2943979.pdf"
+		(property "Datasheet" "https://www.wch-ic.com/downloads/CH32V307DS0_PDF.html"
 			(at 0 0 90)
 			(layer "F.Fab")
 			(hide yes)

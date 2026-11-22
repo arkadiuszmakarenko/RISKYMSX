@@ -65,8 +65,6 @@ jobs:
             zip -9 -j "$GITHUB_WORKSPACE/dist/RISKYMSX-${version}-Gerbers.zip" \
               ./*.gbr ./*.drl ./*.gbrjob
           )
-          cp RISKYMSXCart.csv dist/RISKYMSX-BOM.csv
-          cp board/bom/ibom.html dist/RISKYMSX-interactive-BOM.html
           (cd dist && sha256sum * > SHA256SUMS)
 
       - name: Upload build artifacts
