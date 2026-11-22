@@ -99,9 +99,13 @@ The firmware implements two different modes of operation for the RISKYMSX cartri
 
 ### Automated releases
 
-GitHub Actions builds the firmware on pushes and pull requests to `main`. Pushing a version tag matching `firmware/User/version.h` (currently `v4.2.0`) automatically creates a GitHub Release containing:
+GitHub Actions builds the bootloader, firmware, and Nextor cartridge on pushes
+and pull requests to `main`. Pushing a version tag matching
+`firmware/User/version.h` (currently `v4.2.0`) automatically creates a GitHub
+Release containing:
 
 * Firmware `.bin` and `.hex` files, plus the `CART.NXT` Nextor cartridge image
+* `Bootloader.bin`, the experimental custom bootloader image (not application firmware)
 * A ZIP of the PCB Gerber and drill files
 * `SHA256SUMS` checksums for the release files
 

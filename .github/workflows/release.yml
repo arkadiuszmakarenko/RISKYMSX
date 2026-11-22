@@ -23,6 +23,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes build-essential make zip
 
+      - name: Install .NET for Nextor assembler
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
       - name: Install WCH RISC-V toolchain
         run: |
           archive="$RUNNER_TEMP/wch-toolchain.tar.xz"
@@ -37,8 +42,8 @@ jobs:
           "$compiler" --version
           echo "TOOLCHAIN_DIR=$toolchain/RISC-V Embedded GCC12/bin" >> "$GITHUB_ENV"
 
-      - name: Build firmware and Nextor cartridge
-        run: make -C firmware all TOOLCHAIN_DIR="$TOOLCHAIN_DIR" PREFIX=riscv-wch-elf-
+      - name: Build bootloader, firmware and Nextor cartridge
+        run: make TOOLCHAIN_DIR="$TOOLCHAIN_DIR" PREFIX=riscv-wch-elf-
 
       - name: Package release files
         shell: bash
@@ -53,12 +58,19 @@ jobs:
           fi
 
           mkdir -p dist
-          test -s firmware/build/RISKYMSXCART.bin
-          test -s firmware/build/RISKYMSXCART.hex
-          test -s firmware/build/CART.NXT
-          cp firmware/build/RISKYMSXCART.bin "dist/RISKYMSXCART_${version}.bin"
-          cp firmware/build/RISKYMSXCART.hex "dist/RISKYMSXCART_${version}.hex"
-          cp firmware/build/CART.NXT dist/CART.NXT
+          for file in RISKYMSXCART.bin RISKYMSXCART.hex Bootloader.bin CART.NXT; do
+            test -s "$file" || { echo "Missing or empty build output: $file" >&2; exit 1; }
+          done
+          test "$(wc -c < Bootloader.bin)" -eq 28672 || {
+            echo "Bootloader.bin must be 28 KiB" >&2; exit 1;
+          }
+          test "$(wc -c < CART.NXT)" -eq 131072 || {
+            echo "CART.NXT must be 128 KiB" >&2; exit 1;
+          }
+          cp RISKYMSXCART.bin "dist/RISKYMSXCART_${version}.bin"
+          cp RISKYMSXCART.hex "dist/RISKYMSXCART_${version}.hex"
+          cp Bootloader.bin dist/Bootloader.bin
+          cp CART.NXT dist/CART.NXT
 
           (
             cd board/gerbers
