@@ -109,6 +109,12 @@ Release containing:
 * A ZIP of the PCB Gerber and drill files
 * `SHA256SUMS` checksums for the release files
 
+Successful pushes to `main` also update the `latest-build` prerelease with
+the same assets and the commit SHA, if the built commit is still the tip of
+`main`. Its tag and assets are replaced on each update; older rolling builds
+are not retained. If the current build fails, the previous release remains.
+Versioned releases remain separate, and pull requests do not publish releases.
+
 The BOM is not included in new release packages. Previously published releases
 may contain an outdated BOM. Verify the current schematic BOM before ordering
 parts.

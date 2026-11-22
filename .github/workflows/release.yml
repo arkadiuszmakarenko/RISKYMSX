@@ -117,3 +117,52 @@ jobs:
             fi
             gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" "${args[@]}"
           fi
+
+  latest-build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-22.04
+    concurrency:
+      group: latest-build-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged files
+        uses: actions/download-artifact@v4
+        with:
+          name: RISKYMSX-release-assets
+          path: dist
+
+      - name: Update latest build prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=latest-build
+          head_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
+          if [[ "$head_sha" != "$GITHUB_SHA" ]]; then
+            echo "Skipping older build $GITHUB_SHA; main is at $head_sha"
+            exit 0
+          fi
+
+          release_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id")"
+          notes="Rolling build from main commit $GITHUB_SHA. Assets are replaced on each successful build."
+          if [[ -z "$release_id" ]]; then
+            gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "Latest build" --notes "$notes" --prerelease
+          else
+            gh release upload "$tag" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            assets="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+            while IFS= read -r asset; do
+              if [[ -n "$asset" && ! -f "dist/$asset" ]]; then
+                gh release delete-asset "$tag" "$asset" --repo "$GITHUB_REPOSITORY" --yes
+              fi
+            done <<< "$assets"
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
+              --title "Latest build" --notes "$notes" --prerelease
+          fi
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" \
+            -f "sha=$GITHUB_SHA" -F force=true >/dev/null
